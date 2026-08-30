@@ -1,0 +1,9 @@
+run          belt_v1 (Kaggle)
+trained      2026-08-30 18:50 UTC
+host         Kaggle 2x T4
+model        yolo11s
+epochs       120
+classes      tear hole belt_joint
+train/val    1134/439 images
+best         mAP@.5 95.1%, mAP@.5:.95 66.1%, P 95.1%, R 91.8%
+sha256       18968f148c102cc1f7999fc751e17d89fb22d614e7d4ba2fcad506ec8490f0c1
