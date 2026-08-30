@@ -186,11 +186,16 @@ Measured on an M2/8 GB: `yolo11n` × 60 epochs ≈ 6 hours. `yolo11s` is the
 better model — the paper's benchmark was a mid-size one-stage detector — but at
 ~17 hours for 60 epochs here it is not a sensible local job.
 
-**Use [`training/colab_train.ipynb`](training/colab_train.ipynb) for `yolo11s`.**
-A free Colab T4 has 16 GB, so it trains at batch 32 and finishes 120 epochs in
-1–2 hours. The notebook fetches and merges the data with the identical class
-mapping, trains, evaluates against the paper's baseline, and hands you a
-`best.pt` to drop into `backend/models/`.
+**Train `yolo11s` on a hosted GPU instead:**
+
+| Notebook | Platform |
+| --- | --- |
+| [`kaggle_runner.ipynb`](kaggle_runner.ipynb) | Kaggle, T4 ×2 — clones this repo, reads the Roboflow key from Kaggle Secrets, attempts DDP across both cards and falls back to one |
+| [`training/colab_train.ipynb`](training/colab_train.ipynb) | Google Colab, single T4 — self-contained, no repo clone |
+
+Both fetch and merge the data with the identical class mapping, train, evaluate
+against the paper's baseline, and hand back a `best.pt` for `backend/models/`.
+Expect roughly 1–2 hours for 120 epochs.
 
 **macOS 26 note.** Ultralytics validates datasets via
 `matplotlib.font_manager.findSystemFonts()`, which on macOS 26 crashes with

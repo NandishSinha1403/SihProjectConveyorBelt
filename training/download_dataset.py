@@ -24,13 +24,6 @@ RAW_DIR = ROOT / "data" / "raw"
 # `version` is pinned so a re-run reproduces the same dataset.
 DATASETS: list[dict] = [
     {
-        "slug": "conveyor-belt-damage-detection",
-        "workspace": "cctv-tarjun",
-        "project": "conveyor-belt-damage-detection-bvgsj-dk03r",
-        "version": 1,
-        "note": "Belt Joint / Large Hole / Large Tear",
-    },
-    {
         "slug": "conveyor-belt-damage-sample",
         "workspace": "sample-wy2mp",
         "project": "conveyor-belt-damage",
@@ -42,7 +35,19 @@ DATASETS: list[dict] = [
         "workspace": "test-yfiry",
         "project": "conveyor-belt-damage-ucjlj",
         "version": 1,
-        "note": "general belt damage",
+        "note": "Belt Joint / Large Hole / Large Tear",
+    },
+]
+
+# Projects that were unpublished or renamed since this was written. Kept here so
+# the reason is recorded rather than rediscovered, and so a failing download is
+# never mistaken for a broken script.
+UNAVAILABLE: list[dict] = [
+    {
+        "slug": "conveyor-belt-damage-detection",
+        "project": "cctv-tarjun/conveyor-belt-damage-detection-bvgsj-dk03r",
+        "reason": "no published versions as of 2026-08 (Roboflow reports "
+                  "'Version number 1 is not found')",
     },
 ]
 
@@ -78,6 +83,11 @@ def main() -> int:
         for d in DATASETS:
             print(f"{d['slug']:34} {d['workspace']}/{d['project']} v{d['version']}")
             print(f"{'':34} {d['note']}")
+        if UNAVAILABLE:
+            print("\nKnown unavailable:")
+            for d in UNAVAILABLE:
+                print(f"  {d['slug']:32} {d['project']}")
+                print(f"  {'':32} {d['reason']}")
         return 0
 
     try:
