@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+node_modules/
+dist/
+backend/media/uploads/*
+backend/media/snapshots/*
+!backend/media/**/.gitkeep
+backend/models/*.pt
+backend/data/*.db
+backend/data/*.db-wal
+backend/data/*.db-shm
+training/data/
+training/runs/
+.DS_Store
+.run/
+
+# Base weights are downloaded on demand, not vendored
+yolo11*.pt
+yolov8*.pt

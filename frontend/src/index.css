@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Control-room palette.
+
+   Near-black blue-grey surfaces so that severity colour is the only saturated
+   thing on screen -- in a real control room the operator's eye must be pulled
+   by an alarm, not by chrome. Severity hues match the colours the backend burns
+   into the annotated MJPEG frames exactly, so a box on the video and its card
+   in the alert rail always read as the same thing.
+--------------------------------------------------------------------------- */
+@theme {
+  --color-void: #07090d;
+  --color-base: #0b0e14;
+  --color-surface: #11151d;
+  --color-raised: #171c26;
+  --color-line: #222834;
+  --color-line-soft: #1a1f29;
+
+  --color-ink: #e8ecf4;
+  --color-ink-dim: #9aa4b8;
+  --color-ink-faint: #626d82;
+
+  --color-brand: #f5a524;
+  --color-brand-dim: #b8791a;
+
+  --color-sev-info: #94a3b8;
+  --color-sev-low: #60c4de;
+  --color-sev-medium: #fabe40;
+  --color-sev-high: #ff8030;
+  --color-sev-critical: #f53c3c;
+
+  --color-ok: #3ecf8e;
+
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background-color: var(--color-base);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  /* Numerals in the stats strip must not jitter as values change. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-line);
+    border-radius: 6px;
+    border: 2px solid var(--color-base);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2e3543;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Slow breathing pulse for a live critical alarm. A fast blink is genuinely
+     unpleasant on a screen someone watches for an eight-hour shift. */
+  @keyframes alarm-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+  .animate-alarm {
+    animation: alarm-pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-slide-in {
+    animation: slide-in 0.22s ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-alarm,
+    .animate-slide-in {
+      animation: none;
+    }
+  }
+
+  .grid-lines {
+    background-image:
+      linear-gradient(var(--color-line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--color-line-soft) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+}
