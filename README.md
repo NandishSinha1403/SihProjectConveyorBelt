@@ -146,6 +146,17 @@ python training/evaluate.py        # writes docs/model_report.md
 
 Then set `DETECTOR=yolo` in `backend/.env` and `./scripts/stop.sh && ./scripts/start.sh`.
 
+**Training publishes itself.** On success, `train.py` installs the weights to
+`backend/models/belt_v1.pt` and runs `scripts/publish-model.sh`, which commits
+the model, a metrics file and the training plots and pushes them — so an
+overnight run is never left stranded on one machine. The Kaggle notebook does
+the same via a `GITHUB_TOKEN` secret. Opt out with `--no-publish`.
+
+The publish script stages **only** model artefacts by explicit path, never
+`git add -A`, so it cannot sweep up unrelated work in progress. If the remote
+has moved on it rebases and retries once; if it still cannot push, the model is
+left committed locally and it tells you.
+
 Step by step, if you prefer:
 
 ```bash

@@ -9,6 +9,9 @@ backend/media/uploads/*
 backend/media/snapshots/*
 !backend/media/**/.gitkeep
 backend/models/*.pt
+# The published model is an exception: it is the deliverable, and having it in
+# the repo means a fresh clone can run detection without a training round.
+!backend/models/belt_v1.pt
 backend/data/*.db
 backend/data/*.db-wal
 backend/data/*.db-shm

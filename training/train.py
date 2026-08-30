@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -60,6 +61,8 @@ def main() -> int:
                     help="early-stopping patience in epochs")
     ap.add_argument("--no-install", action="store_true",
                     help="do not copy the best weights into backend/models/")
+    ap.add_argument("--no-publish", action="store_true",
+                    help="do not commit and push the trained model to GitHub")
     args = ap.parse_args()
 
     if not Path(args.data).exists():
@@ -114,8 +117,39 @@ def main() -> int:
         print("\nTo use them: set DETECTOR=yolo in backend/.env and restart the "
               "backend.")
 
+        if not args.no_publish:
+            publish(args.name)
+
     print("\nEvaluate with: python training/evaluate.py")
     return 0
+
+
+def publish(run_name: str) -> None:
+    """Commit and push the trained model, so an overnight run is never stranded.
+
+    Failure here is reported but never fatal: the weights are already on disk
+    and installed, and a network problem at 4am should not look like a failed
+    training run.
+    """
+    script = ROOT.parent / "scripts" / "publish-model.sh"
+    if not script.exists():
+        return
+
+    print("\nPublishing to GitHub…")
+    try:
+        result = subprocess.run(
+            ["bash", str(script), "--run", run_name],
+            cwd=str(ROOT.parent), timeout=300,
+        )
+        if result.returncode != 0:
+            print("⚠ Publish did not complete. The model is safe on disk; "
+                  "push it with: ./scripts/publish-model.sh")
+    except subprocess.TimeoutExpired:
+        print("⚠ Publish timed out (slow network?). "
+              "Retry with: ./scripts/publish-model.sh")
+    except Exception as exc:  # noqa: BLE001
+        print(f"⚠ Publish failed ({exc}). "
+              "Retry with: ./scripts/publish-model.sh")
 
 
 if __name__ == "__main__":
