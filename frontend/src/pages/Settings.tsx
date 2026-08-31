@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Cpu, Save, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Save } from "lucide-react";
 import { api } from "@/lib/api";
 import type { RuntimeSettings } from "@/lib/types";
 import {
@@ -52,7 +52,7 @@ export function Settings() {
     return (
       <div className="flex justify-center py-20">
         {error ? (
-          <p className="text-sm text-sev-critical">{error}</p>
+          <p className="text-[0.8125rem] text-sev-critical">{error}</p>
         ) : (
           <Spinner />
         )}
@@ -61,10 +61,10 @@ export function Settings() {
   }
 
   return (
-    <div className="grid max-w-4xl gap-4 lg:grid-cols-2">
+    <div className="grid max-w-5xl gap-5 lg:grid-cols-2">
       <Panel>
-        <PanelHeader title="Detection Tuning" icon={<SlidersHorizontal size={13} />} />
-        <div className="space-y-5 p-4">
+        <PanelHeader title="Detection tuning" />
+        <div className="space-y-7 p-4 sm:p-5">
           <Slider
             label="Confidence threshold"
             hint="Lower catches more faint defects at the cost of false positives. The paper's benchmark uses 0.50; 0.35 suits early-stage wear."
@@ -108,9 +108,9 @@ export function Settings() {
         </div>
       </Panel>
 
-      <div className="space-y-4">
+      <div className="space-y-5">
         <Panel>
-          <PanelHeader title="Image Preprocessing" icon={<Sparkles size={13} />} />
+          <PanelHeader title="Image preprocessing" />
           <div className="p-4">
             <label className="flex cursor-pointer items-start gap-3">
               <input
@@ -119,13 +119,13 @@ export function Settings() {
                 onChange={(e) =>
                   setDraft((d) => ({ ...d, enable_clahe: e.target.checked }))
                 }
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-brand)]"
+                className="mt-1 h-4 w-4 shrink-0"
               />
               <span>
-                <span className="text-sm font-medium text-ink">
+                <span className="text-[0.9375rem] text-bone">
                   Contrast enhancement (CLAHE)
                 </span>
-                <span className="mt-1 block text-xs leading-relaxed text-ink-faint">
+                <span className="mt-1.5 block max-w-[58ch] text-[0.8125rem] leading-relaxed text-fog">
                   Restores local contrast on belt texture before inference.
                   Guo et al. identify dust and uneven underground lighting as the
                   dominant cause of missed detections; this is the standard
@@ -137,29 +137,33 @@ export function Settings() {
         </Panel>
 
         <Panel>
-          <PanelHeader title="Model" icon={<Cpu size={13} />} />
-          <dl className="space-y-2.5 p-4 text-sm">
+          <PanelHeader title="Model" />
+          <dl className="space-y-3 p-4 text-[0.9375rem] sm:p-5">
             <Row label="Detector" value={settings.detector} />
             <Row label="Weights" value={settings.model_path} />
             <Row label="Device" value={settings.device} />
             <Row label="Input size" value={`${settings.img_size} px`} />
           </dl>
-          <p className="border-t border-line px-4 py-3 text-[11px] leading-relaxed text-ink-faint">
+          <p className="border-t border-ash/70 px-4 py-3.5 text-[0.75rem] leading-relaxed text-fog sm:px-5">
             Model selection requires rebuilding the pipeline, so it stays in{" "}
-            <code className="text-ink-dim">backend/.env</code> — this keeps the
+            <code className="text-bone">backend/.env</code> — this keeps the
             running state from ever disagreeing with what is shown here. Set{" "}
-            <code className="text-ink-dim">DETECTOR=yolo</code> and restart once
+            <code className="text-bone">DETECTOR=yolo</code> and restart once
             trained weights are in place.
           </p>
         </Panel>
       </div>
 
-      <div className="flex items-center gap-3 lg:col-span-2">
-        <Button variant="primary" onClick={save} disabled={saving}>
-          <Save size={14} /> {saving ? "Saving…" : "Save changes"}
+      <div className="flex flex-wrap items-center gap-4 lg:col-span-2">
+        <Button variant="outline" onClick={save} disabled={saving}>
+          <Save size={14} strokeWidth={1.25} /> {saving ? "Saving…" : "Save changes"}
         </Button>
-        {saved && <span className="text-xs text-ok">Settings applied</span>}
-        {error && <span className="text-xs text-sev-critical">{error}</span>}
+        {saved && (
+          <span className="text-[0.8125rem] text-ok">Settings applied</span>
+        )}
+        {error && (
+          <span className="text-[0.8125rem] text-sev-critical">{error}</span>
+        )}
       </div>
     </div>
   );
@@ -186,9 +190,9 @@ function Slider({
 }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-baseline justify-between gap-3">
-        <label className="text-sm font-medium text-ink">{label}</label>
-        <span className="tnum text-xs text-brand">{format(value)}</span>
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <label className="text-[0.9375rem] text-bone">{label}</label>
+        <span className="tnum text-[0.8125rem] text-bone">{format(value)}</span>
       </div>
       <input
         type="range"
@@ -197,9 +201,11 @@ function Slider({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-[var(--color-brand)]"
+        className="w-full"
       />
-      <p className="mt-1.5 text-[11px] leading-relaxed text-ink-faint">{hint}</p>
+      <p className="mt-2.5 max-w-[62ch] text-[0.75rem] leading-relaxed text-fog">
+        {hint}
+      </p>
     </div>
   );
 }
@@ -207,8 +213,8 @@ function Slider({
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-ink-dim">{label}</dt>
-      <dd className="tnum truncate font-mono text-xs text-ink">{value}</dd>
+      <dt className="text-fog">{label}</dt>
+      <dd className="tnum truncate font-mono text-[0.8125rem] text-bone">{value}</dd>
     </div>
   );
 }

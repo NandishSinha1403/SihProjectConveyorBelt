@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Camera,
-  FileVideo,
-  Globe,
   Loader2,
   Play,
   RefreshCw,
@@ -17,7 +14,7 @@ import {
   EmptyState,
   Panel,
   PanelHeader,
-  Spinner,
+  Skeleton,
 } from "@/components/ui/primitives";
 import { useRouter } from "@/components/Router";
 
@@ -96,16 +93,16 @@ export function Sources({ status }: { status: StreamStatus | null }) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {error && (
-        <div className="rounded-md border border-sev-critical/40 bg-sev-critical/10 px-3 py-2 text-sm text-sev-critical">
+        <div className="rounded-[5px] border border-sev-critical/50 px-3.5 py-2.5 text-[0.8125rem] text-sev-critical">
           {error}
         </div>
       )}
 
       {/* Upload */}
       <Panel>
-        <PanelHeader title="Test Footage" icon={<Upload size={13} />} />
+        <PanelHeader title="Test footage" />
         <div className="p-4">
           <div
             onDragOver={(e) => {
@@ -121,10 +118,11 @@ export function Sources({ status }: { status: StreamStatus | null }) {
             }}
             onClick={() => inputRef.current?.click()}
             className={cn(
-              "flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center transition-colors",
+              "flex cursor-pointer flex-col items-center gap-3 rounded-[15px] border border-dashed px-6 py-10 text-center",
+              "transition-colors duration-200 ease-[var(--ease-focus)]",
               dragging
-                ? "border-brand bg-brand/5"
-                : "border-line hover:border-ink-faint hover:bg-raised/40",
+                ? "border-bone bg-raised/60"
+                : "border-ash hover:border-fog hover:bg-raised/40",
             )}
           >
             <input
@@ -140,11 +138,11 @@ export function Sources({ status }: { status: StreamStatus | null }) {
             />
             {uploadPct === null ? (
               <>
-                <Upload size={22} className="text-ink-faint" />
-                <p className="text-sm font-medium text-ink-dim">
+                <Upload size={20} strokeWidth={1.25} className="text-fog" />
+                <p className="text-[1.0625rem] text-bone">
                   Drop belt footage here, or click to browse
                 </p>
-                <p className="max-w-md text-xs text-ink-faint">
+                <p className="max-w-[56ch] text-[0.8125rem] leading-relaxed text-fog">
                   MP4, MOV, AVI, MKV or WebM, up to 2 GB. The file is stored on
                   the server and nothing is analysed on upload — playback streams
                   it one frame at a time at its true frame rate, so the model
@@ -153,13 +151,13 @@ export function Sources({ status }: { status: StreamStatus | null }) {
               </>
             ) : (
               <div className="w-full max-w-sm">
-                <div className="mb-2 flex items-center justify-center gap-2 text-sm text-ink-dim">
-                  <Loader2 size={14} className="animate-spin" />
-                  Uploading… {uploadPct.toFixed(0)}%
+                <div className="tnum mb-3 flex items-center justify-center gap-2 text-[0.8125rem] text-fog">
+                  <Loader2 size={13} strokeWidth={1.25} className="animate-spin" />
+                  Uploading {uploadPct.toFixed(0)}%
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-line">
+                <div className="h-px w-full bg-ash">
                   <div
-                    className="h-full rounded-full bg-brand transition-[width]"
+                    className="h-px bg-bone transition-[width] duration-200 ease-[var(--ease-focus)]"
                     style={{ width: `${uploadPct}%` }}
                   />
                 </div>
@@ -168,53 +166,54 @@ export function Sources({ status }: { status: StreamStatus | null }) {
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-8">
-              <Spinner />
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <Skeleton className="h-[88px] rounded-[15px]" />
+              <Skeleton className="h-[88px] rounded-[15px]" />
             </div>
           ) : videos.length === 0 ? (
             <EmptyState
-              icon={<FileVideo size={24} />}
               title="No footage on the server yet"
               hint="Generate a synthetic belt clip with scripts/make_sample_video.py, or upload your own recording."
             />
           ) : (
-            <ul className="mt-4 grid gap-2.5 sm:grid-cols-2">
+            <ul className="mt-5 grid gap-3 sm:grid-cols-2">
               {videos.map((video) => (
                 <li
                   key={video.name}
                   className={cn(
-                    "flex gap-3 rounded-lg border p-2.5 transition-colors",
+                    "flex gap-3 rounded-[15px] border p-3",
+                    "transition-colors duration-200 ease-[var(--ease-focus)]",
                     status?.uri === video.uri && status.running
-                      ? "border-brand/50 bg-brand/5"
-                      : "border-line bg-raised/40 hover:border-ink-faint",
+                      ? "border-bone"
+                      : "border-ash/70 hover:border-fog",
                   )}
                 >
                   <img
                     src={api.thumbnailUrl(video.name)}
                     alt=""
                     loading="lazy"
-                    className="h-16 w-24 shrink-0 rounded border border-line bg-void object-cover"
+                    className="h-16 w-24 shrink-0 rounded-[5px] border border-ash/70 bg-pitch object-cover"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink">
+                    <p className="truncate text-[0.9375rem] text-bone">
                       {video.name}
                     </p>
-                    <p className="tnum mt-0.5 text-[11px] text-ink-faint">
+                    <p className="tnum mt-1 text-[0.75rem] text-fog">
                       {formatDuration(video.duration)} · {video.width}×
                       {video.height} @ {video.fps} fps ·{" "}
                       {formatBytes(video.size_bytes)}
                     </p>
-                    <div className="mt-2 flex items-center gap-1.5">
+                    <div className="mt-3 flex items-center gap-1.5">
                       <Button
                         size="sm"
-                        variant="primary"
+                        variant="outline"
                         onClick={() => start(video.uri)}
                         disabled={starting === video.uri}
                       >
                         {starting === video.uri ? (
-                          <Loader2 size={12} className="animate-spin" />
+                          <Loader2 size={12} strokeWidth={1.25} className="animate-spin" />
                         ) : (
-                          <Play size={12} />
+                          <Play size={12} strokeWidth={1.25} />
                         )}
                         Stream
                       </Button>
@@ -224,7 +223,7 @@ export function Sources({ status }: { status: StreamStatus | null }) {
                         title="Delete"
                         onClick={() => remove(video.name)}
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={13} strokeWidth={1.25} />
                       </Button>
                     </div>
                   </div>
@@ -239,14 +238,13 @@ export function Sources({ status }: { status: StreamStatus | null }) {
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel>
           <PanelHeader
-            title="Attached Cameras"
-            icon={<Camera size={13} />}
+            title="Attached cameras"
             action={
               <Button size="sm" onClick={probeDevices} disabled={probing}>
                 {probing ? (
-                  <Loader2 size={12} className="animate-spin" />
+                  <Loader2 size={12} strokeWidth={1.25} className="animate-spin" />
                 ) : (
-                  <RefreshCw size={12} />
+                  <RefreshCw size={12} strokeWidth={1.25} />
                 )}
                 Scan
               </Button>
@@ -255,7 +253,6 @@ export function Sources({ status }: { status: StreamStatus | null }) {
           <div className="p-4">
             {devices.length === 0 ? (
               <EmptyState
-                icon={<Camera size={22} />}
                 title={probing ? "Scanning for cameras…" : "No cameras scanned yet"}
                 hint="Scan checks device indices 0–5. A USB or built-in camera streams through the identical pipeline as uploaded footage — no code changes."
               />
@@ -264,23 +261,21 @@ export function Sources({ status }: { status: StreamStatus | null }) {
                 {devices.map((device) => (
                   <li
                     key={device.index}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-line bg-raised/40 px-3 py-2.5"
+                    className="flex items-center justify-between gap-3 rounded-[15px] border border-ash/70 px-3.5 py-3"
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-ink">
-                        {device.label}
-                      </p>
-                      <p className="tnum text-[11px] text-ink-faint">
+                      <p className="text-[0.9375rem] text-bone">{device.label}</p>
+                      <p className="tnum mt-1 text-[0.75rem] text-fog">
                         {device.width}×{device.height} · {device.uri}
                       </p>
                     </div>
                     <Button
                       size="sm"
-                      variant="primary"
+                      variant="outline"
                       onClick={() => start(device.uri)}
                       disabled={starting === device.uri}
                     >
-                      <Play size={12} /> Stream
+                      <Play size={12} strokeWidth={1.25} /> Stream
                     </Button>
                   </li>
                 ))}
@@ -290,9 +285,9 @@ export function Sources({ status }: { status: StreamStatus | null }) {
         </Panel>
 
         <Panel>
-          <PanelHeader title="Network Camera" icon={<Globe size={13} />} />
+          <PanelHeader title="Network camera" />
           <div className="space-y-3 p-4">
-            <p className="text-xs leading-relaxed text-ink-faint">
+            <p className="max-w-[60ch] text-[0.8125rem] leading-relaxed text-fog">
               Point the system at an IP or PoE camera mounted over the belt. RTSP
               and MJPEG-over-HTTP are both supported, and credentials are stripped
               from every log line and from this dashboard.
@@ -309,22 +304,22 @@ export function Sources({ status }: { status: StreamStatus | null }) {
                 onChange={(e) => setNetworkUri(e.target.value)}
                 placeholder="rtsp://user:pass@10.0.0.5:554/stream1"
                 spellCheck={false}
-                className="h-9 min-w-0 flex-1 rounded-md border border-line bg-void px-3 font-mono text-xs text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none"
+                className="h-10 min-w-0 flex-1 rounded-[5px] border border-ash bg-pitch px-3 font-mono text-[0.8125rem] text-bone transition-colors duration-200 ease-[var(--ease-focus)] hover:border-fog focus:border-bone focus:outline-none"
               />
               <Button
                 type="submit"
-                variant="primary"
+                variant="outline"
                 size="md"
                 disabled={!networkUri.trim() || starting === networkUri.trim()}
               >
                 Connect
               </Button>
             </form>
-            <div className="rounded-md border border-line bg-void/60 p-3">
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+            <div className="rounded-[5px] border border-ash/70 p-3.5">
+              <p className="mb-2.5 text-[0.6875rem] uppercase tracking-[0.08em] text-fog">
                 Supported source URIs
               </p>
-              <ul className="tnum space-y-1 font-mono text-[11px] text-ink-dim">
+              <ul className="space-y-1.5 font-mono text-[0.75rem] text-fog">
                 <li>file://media/uploads/belt.mp4</li>
                 <li>device://0</li>
                 <li>rtsp://user:pass@host:554/stream1</li>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@/components/Router";
-import { Play, Square, Video } from "lucide-react";
+import { Play, Square } from "lucide-react";
 import { api } from "@/lib/api";
 import type { EventSocketState } from "@/hooks/useEventSocket";
 import type { IncidentSummary } from "@/lib/types";
@@ -62,20 +62,19 @@ export function LiveMonitor({ socket }: { socket: EventSocketState }) {
   };
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_368px]">
       {/* Main column */}
-      <div className="min-w-0 space-y-4">
+      <div className="min-w-0 space-y-5">
         {running || status?.uri ? (
           <VideoPanel status={status} detections={detections} />
         ) : (
-          <Panel className="grid-lines">
+          <Panel>
             <EmptyState
-              icon={<Video size={30} />}
               title="No source is streaming"
               hint="Upload belt footage or connect a camera to begin monitoring. Uploaded video is played back at its true frame rate, so the model sees it exactly as it would a live feed."
               action={
                 <Link to="/sources">
-                  <Button variant="primary" size="sm">
+                  <Button variant="outline" size="sm">
                     Choose a source
                   </Button>
                 </Link>
@@ -92,7 +91,7 @@ export function LiveMonitor({ socket }: { socket: EventSocketState }) {
               </Button>
             ) : (
               <Button
-                variant="primary"
+                variant="outline"
                 size="sm"
                 onClick={restart}
                 disabled={busy || !status?.uri}
@@ -103,7 +102,9 @@ export function LiveMonitor({ socket }: { socket: EventSocketState }) {
             <Link to="/sources">
               <Button size="sm">Change source</Button>
             </Link>
-            {error && <span className="text-xs text-sev-critical">{error}</span>}
+            {error && (
+              <span className="text-[0.8125rem] text-sev-critical">{error}</span>
+            )}
           </div>
         )}
 
@@ -111,11 +112,11 @@ export function LiveMonitor({ socket }: { socket: EventSocketState }) {
       </div>
 
       {/* Right rail */}
-      <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-5">
         <AlertFeed
           alerts={alerts}
           onClear={clearAlerts}
-          className="min-h-[280px] xl:h-[calc(100vh-27rem)]"
+          className="min-h-[320px] xl:h-[calc(100dvh-28rem)]"
         />
         <HealthGauge
           bySeverity={summary?.by_severity ?? {}}

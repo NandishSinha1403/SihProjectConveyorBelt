@@ -1,16 +1,15 @@
-import { Activity, Cpu, Gauge, SkipForward, Timer } from "lucide-react";
 import type { StreamStatus } from "@/lib/types";
 import { formatDuration } from "@/lib/utils";
 import { Panel, Stat } from "@/components/ui/primitives";
 
 /**
- * The pipeline telemetry strip.
+ * Pipeline telemetry.
  *
- * "Frames skipped" is the one number here that is not routine plumbing. It is
- * the count of frames that arrived while the detector was busy and were
- * therefore never analysed. A file being batch-processed would show zero
- * forever; a genuine real-time feed under load shows it climbing. It is
- * deliberately given equal billing with FPS.
+ * "Frames skipped" is the one figure here that is not routine plumbing. It
+ * counts frames that arrived while the detector was busy and were therefore
+ * never analysed. A file being batch-processed would sit at zero forever; a
+ * genuine real-time feed under load shows it climbing. It gets equal billing
+ * with frame rate for that reason.
  */
 export function StatsBar({ status }: { status: StreamStatus | null }) {
   const running = Boolean(status?.running);
@@ -23,8 +22,8 @@ export function StatsBar({ status }: { status: StreamStatus | null }) {
   const keepingUp = capture > 0 && inference >= capture * 0.9;
 
   return (
-    <Panel className="px-4 py-3">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-6">
+    <Panel className="px-4 py-4 sm:px-5">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 xl:grid-cols-6">
         <Stat
           label="Capture"
           value={running ? capture.toFixed(1) : "—"}
@@ -45,7 +44,7 @@ export function StatsBar({ status }: { status: StreamStatus | null }) {
           hint="Model time per analysed frame"
         />
         <Stat
-          label="Frames skipped"
+          label="Skipped"
           value={running || skipped ? skipped.toLocaleString() : "—"}
           tone={skipRatio > 0.5 ? "warn" : "default"}
           hint="Frames that passed while the model was busy. Proof the feed is processed live, not buffered."
@@ -62,39 +61,30 @@ export function StatsBar({ status }: { status: StreamStatus | null }) {
         />
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line-soft pt-2.5 text-[11px] text-ink-faint">
-        <span className="inline-flex items-center gap-1.5">
-          <Cpu size={11} />
-          {status?.detector ?? "no detector"}
-        </span>
+      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-ash/70 pt-3 text-[0.75rem] text-fog">
+        <span className="truncate">{status?.detector ?? "No detector"}</span>
         {status?.width ? (
-          <span className="inline-flex items-center gap-1.5">
-            <Gauge size={11} />
-            {status.width}×{status.height}
-            {status.source_fps ? ` @ ${status.source_fps} fps source` : ""}
+          <span className="tnum">
+            {status.width}&times;{status.height}
+            {status.source_fps ? ` at ${status.source_fps} fps` : ""}
           </span>
         ) : null}
         {running && (
-          <span className="inline-flex items-center gap-1.5">
-            <Activity size={11} />
+          <span className="tnum">
             {status?.open_incidents ?? 0} defect
             {(status?.open_incidents ?? 0) === 1 ? "" : "s"} in view
           </span>
         )}
         {skipRatio > 0.05 && (
           <span
-            className="inline-flex items-center gap-1.5 text-sev-medium"
-            title="The model is slower than the source, so frames are being dropped rather than queued — exactly as they would be with a live camera."
+            className="tnum text-sev-medium"
+            title="The model is slower than the source, so frames are dropped rather than queued — exactly as they would be with a live camera."
           >
-            <SkipForward size={11} />
             {(skipRatio * 100).toFixed(0)}% of frames dropped
           </span>
         )}
         {status?.error && (
-          <span className="inline-flex items-center gap-1.5 text-sev-critical">
-            <Timer size={11} />
-            {status.error}
-          </span>
+          <span className="text-sev-critical">{status.error}</span>
         )}
       </div>
     </Panel>

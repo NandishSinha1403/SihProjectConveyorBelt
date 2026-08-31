@@ -68,13 +68,15 @@ class StreamSession:
         )
 
         self._capture = CaptureThread(source, self.raw, on_end=self._on_source_end)
+        # No burned-in status block: the dashboard's telemetry strip already
+        # carries source, frame rate and skip count, and printing them into the
+        # frame as well both duplicates the information and covers the belt.
         self._worker = InferenceWorker(
             raw=self.raw,
             annotated=self.annotated,
             detector=self._detector,
             incidents=self.incidents,
             on_result=self._on_result,
-            status_lines=self._status_lines,
         )
         self._capture.start()
         self._worker.start()
@@ -149,13 +151,20 @@ class StreamSession:
             "error": self.error,
         }
 
-    def _status_lines(self) -> list[str]:
+    def status_lines(self) -> list[str]:
+        """Compact overlay text, for frames leaving the dashboard.
+
+        Used when a still is exported or the stream is shown on a wall display
+        with no surrounding HUD to give it context.
+        """
         capture, worker = self._capture, self._worker
         label = self._source.info.label if self._source else self.uri
+        if not (capture and worker):
+            return [f"SRC {label}"]
         return [
             f"SRC {label}",
             f"CAP {capture.fps:5.1f} fps   INF {worker.fps:5.1f} fps   "
-            f"SKIP {worker.frames_skipped}" if capture and worker else "",
+            f"SKIP {worker.frames_skipped}",
         ]
 
     # -- callbacks -----------------------------------------------------------

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { Download, FileWarning, ImageOff, X } from "lucide-react";
+import { Download, ImageOff, X } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Incident, Severity } from "@/lib/types";
 import { SEVERITY_META } from "@/lib/severity";
+import type { Incident, Severity } from "@/lib/types";
 import { cn, formatDateTime, formatDuration } from "@/lib/utils";
 import {
   Button,
@@ -10,7 +10,7 @@ import {
   Panel,
   PanelHeader,
   SeverityBadge,
-  Spinner,
+  Skeleton,
 } from "@/components/ui/primitives";
 
 const PAGE_SIZE = 50;
@@ -60,22 +60,23 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <Panel>
         <PanelHeader
-          title={`Incident History — ${total} record${total === 1 ? "" : "s"}`}
-          icon={<FileWarning size={13} />}
+          title={`${total} incident${total === 1 ? "" : "s"}`}
           action={
             <a href={api.exportCsvUrl(severity || undefined, cls || undefined)}>
-              <Button size="sm">
-                <Download size={12} /> Export CSV
+              <Button size="sm" variant="outline">
+                <Download size={12} strokeWidth={1.25} />
+                <span className="hidden sm:inline">Export CSV</span>
+                <span className="sm:hidden">CSV</span>
               </Button>
             </a>
           }
         />
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-2 border-b border-ash/70 px-4 py-3">
           <Select
             value={severity}
             onChange={setSeverity}
@@ -109,12 +110,19 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-16">
-            <Spinner />
-          </div>
+          // Shaped like the rows it replaces, so the layout does not jump when
+          // the data lands.
+          <ul className="divide-y divide-ash/50">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <li key={i} className="flex items-center gap-4 px-4 py-3.5">
+                <Skeleton className="h-9 w-14 shrink-0" />
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="ml-auto h-4 w-16 rounded-full" />
+              </li>
+            ))}
+          </ul>
         ) : items.length === 0 ? (
           <EmptyState
-            icon={<FileWarning size={26} />}
             title="No incidents recorded"
             hint="Confirmed defects are written here with a snapshot as soon as the model has tracked them across enough consecutive frames."
           />
@@ -124,7 +132,7 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-line text-left text-[10px] uppercase tracking-[0.12em] text-ink-faint">
+                  <tr className="border-b border-ash/70 text-left text-[0.6875rem] uppercase tracking-[0.08em] text-fog">
                     <th className="px-4 py-2 font-medium">ID</th>
                     <th className="px-4 py-2 font-medium">Opened</th>
                     <th className="px-4 py-2 font-medium">Defect</th>
@@ -134,45 +142,41 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
                     <th className="px-4 py-2 font-medium">Snapshot</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line-soft">
+                <tbody className="divide-y divide-ash/50">
                   {items.map((incident) => (
                     <tr
                       key={incident.id}
                       onClick={() => setSelected(incident)}
-                      className="cursor-pointer transition-colors hover:bg-raised/50"
+                      className="cursor-pointer transition-colors duration-200 ease-[var(--ease-focus)] hover:bg-raised/60"
                     >
-                      <td className="tnum px-4 py-2 text-ink-faint">
-                        #{incident.id}
-                      </td>
-                      <td className="tnum whitespace-nowrap px-4 py-2 text-ink-dim">
+                      <td className="tnum px-4 py-3 text-fog">#{incident.id}</td>
+                      <td className="tnum whitespace-nowrap px-4 py-3 text-fog">
                         {formatDateTime(incident.opened_at)}
                       </td>
-                      <td className="px-4 py-2 font-medium text-ink">
-                        {incident.label}
-                      </td>
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-3 text-bone">{incident.label}</td>
+                      <td className="px-4 py-3">
                         <SeverityBadge severity={incident.severity} />
                       </td>
-                      <td className="tnum px-4 py-2 text-ink-dim">
+                      <td className="tnum px-4 py-3 text-fog">
                         {(incident.confidence * 100).toFixed(0)}%
                       </td>
-                      <td className="tnum px-4 py-2 text-ink-dim">
+                      <td className="tnum px-4 py-3 text-fog">
                         {incident.closed_at ? (
                           formatDuration(incident.duration)
                         ) : (
                           <span className="text-ok">active</span>
                         )}
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-3">
                         {incident.snapshot ? (
                           <img
                             src={api.incidentSnapshotUrl(incident.id)}
                             alt=""
                             loading="lazy"
-                            className="h-9 w-14 rounded border border-line object-cover"
+                            className="h-9 w-14 rounded-[5px] border border-ash/70 object-cover"
                           />
                         ) : (
-                          <ImageOff size={14} className="text-ink-faint" />
+                          <ImageOff size={14} strokeWidth={1.25} className="text-fog" />
                         )}
                       </td>
                     </tr>
@@ -182,29 +186,27 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
             </div>
 
             {/* Mobile cards */}
-            <ul className="divide-y divide-line-soft md:hidden">
+            <ul className="divide-y divide-ash/50 md:hidden">
               {items.map((incident) => (
                 <li
                   key={incident.id}
                   onClick={() => setSelected(incident)}
-                  className="flex gap-3 px-4 py-3"
+                  className="flex cursor-pointer gap-3 px-4 py-3.5 transition-colors duration-200 ease-[var(--ease-focus)] active:bg-raised/60"
                 >
                   {incident.snapshot && (
                     <img
                       src={api.incidentSnapshotUrl(incident.id)}
                       alt=""
                       loading="lazy"
-                      className="h-14 w-20 shrink-0 rounded border border-line object-cover"
+                      className="h-14 w-20 shrink-0 rounded-[5px] border border-ash/70 object-cover"
                     />
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate font-medium text-ink">
-                        {incident.label}
-                      </span>
+                      <span className="truncate text-bone">{incident.label}</span>
                       <SeverityBadge severity={incident.severity} />
                     </div>
-                    <p className="tnum mt-1 text-[11px] text-ink-faint">
+                    <p className="tnum mt-1.5 text-[0.75rem] text-fog">
                       #{incident.id} · {formatDateTime(incident.opened_at)} ·{" "}
                       {(incident.confidence * 100).toFixed(0)}%
                     </p>
@@ -214,7 +216,7 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
             </ul>
 
             {pages > 1 && (
-              <div className="flex items-center justify-between border-t border-line px-4 py-2.5 text-xs text-ink-dim">
+              <div className="flex items-center justify-between border-t border-ash/70 px-4 py-3 text-[0.8125rem] text-fog">
                 <span className="tnum">
                   Page {page + 1} of {pages}
                 </span>
@@ -265,7 +267,7 @@ function Select({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-7 rounded-md border border-line bg-raised px-2 text-xs capitalize text-ink focus:border-brand focus:outline-none"
+      className="h-8 rounded-[5px] border border-ash bg-raised px-2.5 text-[0.75rem] capitalize text-bone transition-colors duration-200 ease-[var(--ease-focus)] hover:border-fog focus:border-bone focus:outline-none"
     >
       <option value="">{placeholder}</option>
       {options.map((o) => (
@@ -290,30 +292,29 @@ function IncidentDrawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const meta = SEVERITY_META[incident.severity];
-
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-void/70 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-obsidian/80 backdrop-blur-sm sm:items-center"
       onClick={onClose}
     >
       <div
         className={cn(
-          "max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-t-xl border bg-surface sm:rounded-xl",
-          meta.border,
+          "animate-rise max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-t-[15px] border border-ash/70 bg-panel sm:rounded-[15px]",
         )}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={`Incident ${incident.id}`}
       >
-        <div className="flex items-center justify-between border-b border-line px-4 py-3">
-          <div className="flex items-center gap-2.5">
-            <h3 className="font-semibold text-ink">{incident.label}</h3>
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-ash/70 bg-panel px-4 py-3.5">
+          <div className="flex min-w-0 items-center gap-3">
+            <h3 className="truncate text-[1.375rem] leading-none tracking-[-0.01em] text-bone">
+              {incident.label}
+            </h3>
             <SeverityBadge severity={incident.severity} />
           </div>
           <Button size="icon" variant="ghost" onClick={onClose}>
-            <X size={15} />
+            <X size={16} strokeWidth={1.25} />
           </Button>
         </div>
 
@@ -321,11 +322,11 @@ function IncidentDrawer({
           <img
             src={api.incidentSnapshotUrl(incident.id)}
             alt={`${incident.label} at the moment of confirmation`}
-            className="w-full bg-void object-contain"
+            className="w-full bg-pitch object-contain"
           />
         )}
 
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 p-4 text-sm sm:grid-cols-3">
+        <dl className="grid grid-cols-2 gap-x-5 gap-y-4 p-4 text-[0.9375rem] sm:grid-cols-3">
           <Field label="Incident ID" value={`#${incident.id}`} />
           <Field label="Track ID" value={String(incident.track_id)} />
           <Field label="Confidence" value={`${(incident.confidence * 100).toFixed(1)}%`} />
@@ -358,10 +359,10 @@ function IncidentDrawer({
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">
+      <dt className="text-[0.6875rem] uppercase tracking-[0.08em] text-fog">
         {label}
       </dt>
-      <dd className="tnum mt-0.5 text-ink">{value}</dd>
+      <dd className="tnum mt-1 text-bone">{value}</dd>
     </div>
   );
 }

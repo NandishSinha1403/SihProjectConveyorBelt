@@ -1,4 +1,3 @@
-import { BarChart3 } from "lucide-react";
 import { Panel, PanelHeader } from "@/components/ui/primitives";
 
 const CLASS_ORDER = [
@@ -32,23 +31,21 @@ export function DefectCounters({ counts }: { counts: Record<string, number> }) {
 
   return (
     <Panel>
-      <PanelHeader title="Session Detections" icon={<BarChart3 size={13} />} />
-      <ul className="space-y-2.5 px-4 py-3.5">
+      <PanelHeader title="Detections this session" />
+      <ul className="space-y-3 px-4 py-4">
         {rows.map((cls) => {
           const count = counts[cls] ?? 0;
           return (
             <li key={cls}>
               <div className="mb-1 flex items-baseline justify-between gap-2">
-                <span className="truncate text-xs text-ink-dim">
+                <span className="truncate text-[0.8125rem] text-fog">
                   {CLASS_LABELS[cls] ?? cls}
                 </span>
-                <span className="tnum text-sm font-semibold text-ink">
-                  {count}
-                </span>
+                <span className="tnum text-[0.9375rem] text-bone">{count}</span>
               </div>
-              <div className="h-1 overflow-hidden rounded-full bg-line-soft">
+              <div className="h-px w-full bg-ash">
                 <div
-                  className="h-full rounded-full bg-brand/70 transition-[width] duration-500"
+                  className="h-px bg-bone transition-[width] duration-500 ease-[var(--ease-focus)]"
                   style={{ width: `${(count / max) * 100}%` }}
                 />
               </div>

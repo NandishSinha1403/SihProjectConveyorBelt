@@ -1,44 +1,81 @@
+@import "@fontsource-variable/inter";
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Control-room palette.
+   Vivid+Co — prismatic light through obsidian.
 
-   Near-black blue-grey surfaces so that severity colour is the only saturated
-   thing on screen -- in a real control room the operator's eye must be pulled
-   by an alarm, not by chrome. Severity hues match the colours the backend burns
-   into the annotated MJPEG frames exactly, so a box on the video and its card
-   in the alert rail always read as the same thing.
+   A cinematic dark void. Near-black canvas, one near-white that carries almost
+   all type and chrome, and authority from scale rather than weight. Zero
+   shadows: depth comes from the surface stack and hairline rules alone.
+
+   One deliberate adaptation. The reference reserves its saturated RGB for the
+   prism artifact and keeps colour out of the UI entirely. This is a
+   safety-critical monitoring surface — an operator has to separate a critical
+   tear from a scratch in the first half-second — so severity becomes the
+   prism: the single chromatic event allowed to break the monochrome, held to
+   exactly the discipline the reference demands. Saturated, rare, never
+   decorative, never on an inactive state.
 --------------------------------------------------------------------------- */
+
 @theme {
-  --color-void: #07090d;
-  --color-base: #0b0e14;
-  --color-surface: #11151d;
-  --color-raised: #171c26;
-  --color-line: #222834;
-  --color-line-soft: #1a1f29;
+  /* -- Canvas ------------------------------------------------------------ */
+  /* Obsidian is the floor; graphite veil is the documented ceiling. The two
+     steps between are interpolated so dense panels never brighten past it. */
+  --color-obsidian: #101010;
+  --color-pitch: #0a0a0a;
+  --color-panel: #151617;
+  /* Capped at the lightest value that still clears 4.5:1 for fog and the
+     severity hues sitting on a hovered row. */
+  --color-raised: #1b1c1d;
+  --color-veil: #495764;
 
-  --color-ink: #e8ecf4;
-  --color-ink-dim: #9aa4b8;
-  --color-ink-faint: #626d82;
+  /* -- Ink --------------------------------------------------------------- */
+  --color-bone: #fffdf9;
+  --color-fog: #6f879c;
+  --color-ash: #403f3f;
 
-  --color-brand: #f5a524;
-  --color-brand-dim: #b8791a;
+  /* -- Prism: severity, and nothing else --------------------------------- */
+  --color-prism-red: #ff2a2a;
+  --color-prism-cyan: #2a7fff;
+  --color-prism-lime: #2aff2a;
 
-  --color-sev-info: #94a3b8;
-  --color-sev-low: #60c4de;
-  --color-sev-medium: #fabe40;
-  --color-sev-high: #ff8030;
-  --color-sev-critical: #f53c3c;
+  --color-sev-critical: #ff2a2a;
+  --color-sev-high: #ff7a3d;
+  --color-sev-medium: #f5c451;
+  --color-sev-low: #2a7fff;
+  --color-sev-info: #6f879c;
+  --color-ok: #2aff2a;
 
-  --color-ok: #3ecf8e;
+  /* -- Type -------------------------------------------------------------- */
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Fixed rem scale. Product UI is read at consistent DPI, and a fluid
+     heading that shrinks inside a rail looks worse, not better. */
+  --text-caption: 0.75rem;
+  --text-label: 0.8125rem;
+  --text-body: 0.9375rem;
+  --text-body-lg: 1.0625rem;
+  --text-title: 1.375rem;
+  --text-display-sm: 2.0625rem;
+  --text-display: 3.5rem;
+
+  /* -- Radius ------------------------------------------------------------ */
+  --radius-nav: 5px;
+  --radius-card: 15px;
+  --radius-btn: 0px;
+  --radius-pill: 9999px;
+
+  /* -- Motion ------------------------------------------------------------ */
+  /* The reference's signature curve: slow start, decisive stop, like an
+     optical focus pull. Held to product timings — an operator is mid-task and
+     should not wait for choreography. */
+  --ease-focus: cubic-bezier(0.52, 0.01, 0, 1);
 }
 
 @layer base {
   * {
-    border-color: var(--color-line);
+    border-color: var(--color-ash);
   }
 
   html,
@@ -48,82 +85,131 @@
   }
 
   body {
-    background-color: var(--color-base);
-    color: var(--color-ink);
+    background-color: var(--color-obsidian);
+    color: var(--color-bone);
     font-family: var(--font-sans);
+    font-size: var(--text-body);
+    font-weight: 400;
+    font-feature-settings: "ss01" on, "cv05" on;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
     overscroll-behavior: none;
   }
 
-  /* Numerals in the stats strip must not jitter as values change. */
+  /* Authority from scale, never from stroke weight. */
+  h1, h2, h3, h4 {
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+
+  /* Numerals that must not reflow as values tick. */
   .tnum {
     font-variant-numeric: tabular-nums;
-    font-family: var(--font-mono);
+    font-feature-settings: "tnum" on, "ss01" on;
+  }
+
+  /* -- Browser surfaces the design still owns --------------------------- */
+  ::selection {
+    background: var(--color-bone);
+    color: var(--color-obsidian);
   }
 
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 9px;
+    height: 9px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--color-line);
-    border-radius: 6px;
-    border: 2px solid var(--color-base);
+    background: var(--color-ash);
+    border: 2px solid var(--color-obsidian);
+    border-radius: var(--radius-pill);
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #2e3543;
+    background: var(--color-fog);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ash) transparent;
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-brand);
+    outline: 1px solid var(--color-bone);
     outline-offset: 2px;
+  }
+
+  input,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  input::placeholder {
+    color: var(--color-fog);
+  }
+
+  /* Range inputs ship with a browser look that belongs to no design system. */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 1px;
+    background: var(--color-ash);
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 13px;
+    height: 13px;
+    border-radius: var(--radius-pill);
+    background: var(--color-bone);
+    transition: transform 0.18s var(--ease-focus);
+  }
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.25);
+  }
+  input[type="range"]:focus-visible::-webkit-slider-thumb {
+    outline: 1px solid var(--color-bone);
+    outline-offset: 2px;
+  }
+
+  input[type="checkbox"] {
+    accent-color: var(--color-bone);
   }
 }
 
 @layer utilities {
-  /* Slow breathing pulse for a live critical alarm. A fast blink is genuinely
-     unpleasant on a screen someone watches for an eight-hour shift. */
-  @keyframes alarm-pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.45;
-    }
+  /* A critical defect in frame. Slow, so it stays bearable across a shift. */
+  @keyframes prism-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
   }
   .animate-alarm {
-    animation: alarm-pulse 1.6s ease-in-out infinite;
+    animation: prism-pulse 2s var(--ease-focus) infinite;
   }
 
-  @keyframes slide-in {
-    from {
-      opacity: 0;
-      transform: translateY(-6px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: none; }
   }
-  .animate-slide-in {
-    animation: slide-in 0.22s ease-out;
+  .animate-rise {
+    animation: rise 0.22s var(--ease-focus);
   }
 
   @media (prefers-reduced-motion: reduce) {
     .animate-alarm,
-    .animate-slide-in {
+    .animate-rise {
       animation: none;
     }
   }
 
-  .grid-lines {
-    background-image:
-      linear-gradient(var(--color-line-soft) 1px, transparent 1px),
-      linear-gradient(90deg, var(--color-line-soft) 1px, transparent 1px);
-    background-size: 28px 28px;
+  /* Chromatic dispersion, borrowed from the prism, for the one live edge
+     that has to be unmissable without being a flashing box. */
+  .prism-edge {
+    box-shadow:
+      inset 0 0 0 1px var(--color-sev-critical),
+      inset 0 0 22px -12px var(--color-prism-red);
   }
 }

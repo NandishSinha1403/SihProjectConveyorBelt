@@ -90,14 +90,14 @@ export function VideoPanel({ status, detections }: Props) {
       ctx.strokeRect(px, py, pw, ph);
 
       const text = `${det.label} ${det.confidence.toFixed(2)}`;
-      ctx.font = "600 11px ui-monospace, SF Mono, Menlo, monospace";
+      ctx.font = '500 11px "Inter Variable", Inter, system-ui, sans-serif';
       const tw = ctx.measureText(text).width + 8;
       // Flip the tag below the box when the defect touches the top edge.
       const ty = py > 16 ? py - 15 : py + ph + 1;
 
       ctx.fillStyle = color;
       ctx.fillRect(px, ty, tw, 14);
-      ctx.fillStyle = "#0b0e14";
+      ctx.fillStyle = "#101010";
       ctx.fillText(text, px + 4, ty + 10.5);
     }
   }, [detections, overlay]);
@@ -114,10 +114,10 @@ export function VideoPanel({ status, detections }: Props) {
   return (
     <div
       ref={containerRef}
-      className="relative overflow-hidden rounded-lg border border-line bg-void"
+      className="relative overflow-hidden rounded-[15px] border border-ash/70 bg-pitch"
     >
       {/* Video surface */}
-      <div className="relative aspect-video w-full grid-lines">
+      <div className="relative aspect-video w-full">
         {src && !imgFailed ? (
           <img
             ref={imgRef}
@@ -128,7 +128,7 @@ export function VideoPanel({ status, detections }: Props) {
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-sm text-ink-faint">
+            <p className="text-[0.8125rem] text-fog">
               {paused ? "Feed paused" : "Stream unavailable"}
             </p>
           </div>
@@ -144,44 +144,42 @@ export function VideoPanel({ status, detections }: Props) {
         {/* A critical defect currently in frame gets a hairline border, not a
             full-screen flash: unmissable without being punishing over a shift. */}
         {criticalLive && running && (
-          <div className="animate-alarm pointer-events-none absolute inset-0 rounded-lg border-2 border-sev-critical/70" />
+          <div className="prism-edge animate-alarm pointer-events-none absolute inset-0 rounded-[15px]" />
         )}
 
         {/* Live pill */}
-        <div className="absolute left-3 top-3 flex items-center gap-2">
+        <div className="absolute left-3 top-3 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-1.5 sm:max-w-[calc(100%-11rem)]">
           <span
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-2 py-1",
-              "text-[10px] font-bold uppercase tracking-[0.14em] backdrop-blur-md",
-              running
-                ? "border-sev-critical/50 bg-sev-critical/15 text-sev-critical"
-                : "border-line bg-void/70 text-ink-faint",
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1",
+              "bg-obsidian/80 text-[0.6875rem] uppercase tracking-[0.06em] backdrop-blur-sm",
+              running ? "text-sev-critical" : "text-fog",
             )}
           >
-            <Radio size={10} className={running ? "animate-alarm" : undefined} />
+            <Radio size={9} className={running ? "animate-alarm" : undefined} />
             {running ? (status?.is_live ? "Live" : "Streaming") : "Offline"}
           </span>
           {status?.label && (
-            <span className="max-w-[40vw] truncate rounded-full border border-line bg-void/70 px-2 py-1 text-[10px] text-ink-dim backdrop-blur-md">
+            <span className="max-w-[45vw] truncate rounded-full bg-obsidian/80 px-2.5 py-1 text-[0.6875rem] text-fog backdrop-blur-sm">
               {status.label}
             </span>
           )}
           {status?.clahe && (
             <span
-              className="hidden items-center gap-1 rounded-full border border-line bg-void/70 px-2 py-1 text-[10px] text-ink-faint backdrop-blur-md sm:inline-flex"
+              className="hidden items-center gap-1 rounded-full bg-obsidian/80 px-2.5 py-1 text-[0.6875rem] uppercase tracking-[0.06em] text-fog backdrop-blur-sm sm:inline-flex"
               title="Contrast enhancement (CLAHE) is active — compensates for dust and low light"
             >
-              <Sparkles size={10} /> CLAHE
+              <Sparkles size={9} /> CLAHE
             </span>
           )}
         </div>
 
         {/* Controls */}
-        <div className="absolute right-3 top-3 flex items-center gap-1.5">
+        <div className="absolute bottom-3 right-3 flex items-center gap-1 sm:bottom-auto sm:top-3">
           <Button
             size="icon"
             variant="ghost"
-            className="bg-void/70 backdrop-blur-md hover:bg-void"
+            className="bg-obsidian/80 backdrop-blur-sm hover:bg-obsidian hover:text-bone"
             onClick={() =>
               setOverlay((o) =>
                 o === "burned" ? "canvas" : o === "canvas" ? "off" : "burned",
@@ -191,17 +189,18 @@ export function VideoPanel({ status, detections }: Props) {
           >
             <Layers
               size={15}
-              className={overlay === "off" ? "text-ink-faint" : "text-brand"}
+              strokeWidth={1.25}
+              className={overlay === "off" ? "text-fog" : "text-bone"}
             />
           </Button>
           <Button
             size="icon"
             variant="ghost"
-            className="bg-void/70 backdrop-blur-md hover:bg-void"
+            className="bg-obsidian/80 backdrop-blur-sm hover:bg-obsidian hover:text-bone"
             onClick={() => setPaused((p) => !p)}
             title={paused ? "Resume feed" : "Freeze feed"}
           >
-            {paused ? <Play size={15} /> : <Pause size={15} />}
+            {paused ? <Play size={15} strokeWidth={1.25} /> : <Pause size={15} strokeWidth={1.25} />}
           </Button>
           <a
             href={api.snapshotUrl(annotate)}
@@ -212,26 +211,26 @@ export function VideoPanel({ status, detections }: Props) {
             <Button
               size="icon"
               variant="ghost"
-              className="bg-void/70 backdrop-blur-md hover:bg-void"
+              className="bg-obsidian/80 backdrop-blur-sm hover:bg-obsidian hover:text-bone"
               disabled={!running}
             >
-              <Camera size={15} />
+              <Camera size={15} strokeWidth={1.25} />
             </Button>
           </a>
           <Button
             size="icon"
             variant="ghost"
-            className="bg-void/70 backdrop-blur-md hover:bg-void"
+            className="bg-obsidian/80 backdrop-blur-sm hover:bg-obsidian hover:text-bone"
             onClick={toggleFullscreen}
             title="Fullscreen"
           >
-            <Expand size={15} />
+            <Expand size={15} strokeWidth={1.25} />
           </Button>
         </div>
 
         {/* Frozen-frame notice: without this it looks like the pipeline died. */}
         {paused && (
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-brand/40 bg-void/85 px-3 py-1 text-[11px] text-brand backdrop-blur-md">
+          <div className="absolute bottom-3 left-3 rounded-full bg-obsidian/85 px-3 py-1 text-[0.6875rem] text-bone backdrop-blur-sm sm:left-1/2 sm:-translate-x-1/2">
             Display frozen — the pipeline is still running
           </div>
         )}

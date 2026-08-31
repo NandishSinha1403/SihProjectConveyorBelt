@@ -11,7 +11,7 @@ export const SEVERITY_META: Record<
 > = {
   info: {
     label: "Info",
-    hex: "#94a3b8",
+    hex: "#6f879c",
     text: "text-sev-info",
     bg: "bg-sev-info/10",
     border: "border-sev-info/30",
@@ -19,7 +19,7 @@ export const SEVERITY_META: Record<
   },
   low: {
     label: "Low",
-    hex: "#60c4de",
+    hex: "#2a7fff",
     text: "text-sev-low",
     bg: "bg-sev-low/10",
     border: "border-sev-low/30",
@@ -27,7 +27,7 @@ export const SEVERITY_META: Record<
   },
   medium: {
     label: "Medium",
-    hex: "#fabe40",
+    hex: "#f5c451",
     text: "text-sev-medium",
     bg: "bg-sev-medium/10",
     border: "border-sev-medium/30",
@@ -35,7 +35,7 @@ export const SEVERITY_META: Record<
   },
   high: {
     label: "High",
-    hex: "#ff8030",
+    hex: "#ff7a3d",
     text: "text-sev-high",
     bg: "bg-sev-high/10",
     border: "border-sev-high/30",
@@ -43,7 +43,7 @@ export const SEVERITY_META: Record<
   },
   critical: {
     label: "Critical",
-    hex: "#f53c3c",
+    hex: "#ff2a2a",
     text: "text-sev-critical",
     bg: "bg-sev-critical/10",
     border: "border-sev-critical/40",

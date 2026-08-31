@@ -1,4 +1,3 @@
-import { HeartPulse } from "lucide-react";
 import { beltHealth, healthLabel, SEVERITY_META } from "@/lib/severity";
 import type { Severity } from "@/lib/types";
 import { Panel, PanelHeader } from "@/components/ui/primitives";
@@ -6,9 +5,13 @@ import { Panel, PanelHeader } from "@/components/ui/primitives";
 /**
  * Belt Health Index.
  *
+ * Scale carries the hierarchy here rather than weight: the number is set large
+ * and light, the way the reference sets its display type. The ring is a single
+ * hairline arc — no fill, no glow.
+ *
  * Vision-only for now. The deferred predictive phase folds in defect growth
- * rate and IoT sensor anomalies, which is why the contribution breakdown is
- * rendered as a list rather than baked into a single opaque number.
+ * rate and IoT sensor anomalies, which is why the contribution breakdown is a
+ * list rather than a single opaque figure.
  */
 export function HealthGauge({
   bySeverity,
@@ -25,7 +28,7 @@ export function HealthGauge({
   const { text, severity } = healthLabel(score);
   const meta = SEVERITY_META[severity];
 
-  const radius = 52;
+  const radius = 54;
   const circumference = 2 * Math.PI * radius;
   const dash = (score / 100) * circumference;
 
@@ -36,43 +39,38 @@ export function HealthGauge({
   return (
     <Panel>
       <PanelHeader
-        title={
-          windowHours
-            ? `Belt Health Index — last ${windowHours}h`
-            : "Belt Health Index"
-        }
-        icon={<HeartPulse size={13} />}
+        title={windowHours ? `Belt health · last ${windowHours}h` : "Belt health"}
       />
-      <div className="flex items-center gap-5 px-4 py-4">
+      <div className="flex flex-wrap items-center gap-6 px-4 py-5 sm:flex-nowrap">
         <div className="relative shrink-0">
-          <svg width="124" height="124" viewBox="0 0 124 124" aria-hidden>
+          <svg width="128" height="128" viewBox="0 0 128 128" aria-hidden>
             <circle
-              cx="62"
-              cy="62"
+              cx="64"
+              cy="64"
               r={radius}
               fill="none"
-              stroke="var(--color-line)"
-              strokeWidth="8"
+              stroke="var(--color-ash)"
+              strokeWidth="1"
             />
             <circle
-              cx="62"
-              cy="62"
+              cx="64"
+              cy="64"
               r={radius}
               fill="none"
               stroke={meta.hex}
-              strokeWidth="8"
+              strokeWidth="1"
               strokeLinecap="round"
               strokeDasharray={`${dash} ${circumference}`}
-              transform="rotate(-90 62 62)"
-              style={{ transition: "stroke-dasharray 0.6s ease" }}
+              transform="rotate(-90 64 64)"
+              style={{ transition: "stroke-dasharray 0.5s var(--ease-focus)" }}
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="tnum text-3xl font-bold leading-none text-ink">
+            <span className="tnum text-[2.75rem] leading-none tracking-[-0.03em] text-bone">
               {score}
             </span>
             <span
-              className="mt-1 text-[10px] font-semibold uppercase tracking-wider"
+              className="mt-1.5 text-[0.6875rem] uppercase tracking-[0.08em]"
               style={{ color: meta.hex }}
             >
               {text}
@@ -81,31 +79,39 @@ export function HealthGauge({
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-xs text-ink-faint">
+          <p className="text-[0.8125rem] leading-relaxed text-fog">
             {total === 0
               ? "No confirmed defects in this window."
               : `${total} confirmed defect${total === 1 ? "" : "s"} in this window.`}
             {allTime !== undefined && allTime !== total && (
-              <span className="text-ink-faint/70"> {allTime} all time.</span>
+              <span className="text-fog/60"> {allTime} all time.</span>
             )}
           </p>
+
           {rows.length > 0 && (
-            <ul className="mt-2.5 space-y-1.5">
+            <ul className="mt-4 space-y-2">
               {rows.map(({ sev, count }) => {
                 const m = SEVERITY_META[sev];
                 return (
-                  <li key={sev} className="flex items-center gap-2 text-xs">
-                    <span className={`h-2 w-2 shrink-0 rounded-full ${m.dot}`} />
-                    <span className="flex-1 text-ink-dim">{m.label}</span>
-                    <span className="tnum font-semibold text-ink">{count}</span>
+                  <li
+                    key={sev}
+                    className="flex items-center gap-2.5 text-[0.8125rem]"
+                  >
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: m.hex }}
+                    />
+                    <span className="flex-1 text-fog">{m.label}</span>
+                    <span className="tnum text-bone">{count}</span>
                   </li>
                 );
               })}
             </ul>
           )}
-          <p className="mt-3 border-t border-line-soft pt-2 text-[10px] leading-relaxed text-ink-faint">
-            Vision-derived score. Sensor and wear-rate inputs join in the
-            predictive phase.
+
+          <p className="mt-5 border-t border-ash/70 pt-3 text-[0.75rem] leading-relaxed text-fog/70">
+            Vision-derived. Sensor and wear-rate inputs join in the predictive
+            phase.
           </p>
         </div>
       </div>
