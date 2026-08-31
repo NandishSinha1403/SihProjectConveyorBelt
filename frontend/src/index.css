@@ -211,9 +211,63 @@
     animation: rise 0.22s var(--ease-focus);
   }
 
+  /* ---------------------------------------------------------------------
+     The authored moment: an incident confirming.
+
+     Every other transition here is feedback. This one is the product's
+     argument. A detector emits a box the instant it sees something; this
+     system waits until the same defect has survived several consecutive
+     frames before it will call it real. That decision is the whole thesis
+     and it was previously invisible — a card simply existed.
+
+     So confirmation is staged as the reference's own image: white light
+     entering obsidian, splitting, and resolving. Three chromatic slivers
+     lead the card in, converge into the single severity hue, and vanish —
+     dispersion collapsing into a verdict. It fires a few times a minute at
+     most, on one small element, and animates clip-path and box-shadow only.
+  --------------------------------------------------------------------- */
+  @keyframes confirm-reveal {
+    from { clip-path: inset(0 0 0 100%); }
+    to   { clip-path: inset(0 0 0 0); }
+  }
+
+  @keyframes confirm-disperse {
+    0% {
+      opacity: 1;
+      box-shadow:
+        3px 0 0 var(--color-prism-red),
+        6px 0 0 var(--color-prism-lime),
+        9px 0 0 var(--color-prism-cyan);
+    }
+    55% {
+      opacity: 1;
+      box-shadow:
+        0 0 0 var(--color-prism-red),
+        0 0 0 var(--color-prism-lime),
+        0 0 0 var(--color-prism-cyan);
+    }
+    100% { opacity: 0; box-shadow: none; }
+  }
+
+  .confirming {
+    position: relative;
+    animation: confirm-reveal 420ms var(--ease-focus) both;
+  }
+  .confirming::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 2px;
+    background: var(--sev, var(--color-bone));
+    animation: confirm-disperse 640ms var(--ease-focus) both;
+    pointer-events: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .animate-alarm,
-    .animate-rise {
+    .animate-rise,
+    .confirming,
+    .confirming::before {
       animation: none;
     }
   }

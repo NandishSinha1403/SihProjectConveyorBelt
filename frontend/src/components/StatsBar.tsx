@@ -86,29 +86,22 @@ export function StatsBar({ status }: { status: StreamStatus | null }) {
       <p className="mt-4 max-w-[68ch] border-t border-ash/70 pt-3 text-[0.8125rem] leading-relaxed text-fog">
         {running ? (
           <>
-            <span className="text-bone">
-              Skipped frames are the proof this is live.
-            </span>{" "}
-            They arrived while the model was still working on an earlier one, so
-            they were dropped rather than queued — exactly what a camera does.
+            <span className="text-bone">Skipped frames prove this is live.</span>{" "}
+            They arrived while the model was busy and were dropped, not queued —
+            what a camera does.
             {skipRatio > 0.05 && (
               <>
                 {" "}
-                Right now{" "}
                 <span className="tnum text-sev-medium">
                   {(skipRatio * 100).toFixed(0)}%
                 </span>{" "}
-                are being dropped, which means detection is running slower than
-                the belt is being filmed.
+                are dropping now: detection is slower than the filming.
               </>
             )}
           </>
         ) : (
-          <>
-            Start a source to see live throughput. Skipped frames — dropped
-            rather than queued while the model was busy — are what separates
-            monitoring a feed from processing a file.
-          </>
+          <>Start a source to see throughput. Dropped frames, not queued ones,
+          are what separates monitoring from processing a file.</>
         )}
       </p>
 

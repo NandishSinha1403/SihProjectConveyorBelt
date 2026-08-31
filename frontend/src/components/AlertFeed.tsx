@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Undo2 } from "lucide-react";
 import type { Incident } from "@/lib/types";
 import { api } from "@/lib/api";
+import { SEVERITY_META } from "@/lib/severity";
 import { cn, formatClock, formatDuration } from "@/lib/utils";
 import {
   Button,
@@ -31,6 +32,20 @@ export function AlertFeed({
   const timer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  // Only genuinely new incidents get the confirmation moment. The rail is
+  // seeded from history on load, and staging thirty past defects as fresh
+  // verdicts would turn the one authored moment into a slot machine.
+  const seen = useRef<Set<number> | null>(null);
+  const isNew = (id: number) => {
+    if (seen.current === null) {
+      seen.current = new Set(alerts.map((a) => a.id));
+      return false;
+    }
+    if (seen.current.has(id)) return false;
+    seen.current.add(id);
+    return true;
+  };
 
   const clear = () => {
     const snapshot = alerts;
@@ -86,7 +101,7 @@ export function AlertFeed({
         ) : (
           <ul className="divide-y divide-ash/50">
             {alerts.map((alert) => (
-              <AlertRow key={alert.id} alert={alert} />
+              <AlertRow key={alert.id} alert={alert} confirming={isNew(alert.id)} />
             ))}
           </ul>
         )}
@@ -95,11 +110,27 @@ export function AlertFeed({
   );
 }
 
-function AlertRow({ alert }: { alert: Incident }) {
+function AlertRow({
+  alert,
+  confirming,
+}: {
+  alert: Incident;
+  confirming: boolean;
+}) {
   const active = alert.closed_at === null;
 
   return (
-    <li className="animate-rise flex gap-3 px-4 py-3 transition-colors duration-200 ease-[var(--ease-focus)] hover:bg-raised/60">
+    <li
+      style={
+        confirming
+          ? ({ "--sev": SEVERITY_META[alert.severity].hex } as React.CSSProperties)
+          : undefined
+      }
+      className={cn(
+        "flex gap-3 px-4 py-3 transition-colors duration-200 ease-[var(--ease-focus)] hover:bg-raised/60",
+        confirming ? "confirming" : "animate-rise",
+      )}
+    >
 
       {alert.snapshot && (
         <a

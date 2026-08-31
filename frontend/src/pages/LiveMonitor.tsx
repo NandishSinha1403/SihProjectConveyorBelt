@@ -7,8 +7,7 @@ import type { IncidentSummary } from "@/lib/types";
 import { VideoPanel } from "@/components/VideoPanel";
 import { StatsBar } from "@/components/StatsBar";
 import { AlertFeed } from "@/components/AlertFeed";
-import { HealthGauge } from "@/components/HealthGauge";
-import { DefectCounters } from "@/components/DefectCounters";
+import { BeltHealth } from "@/components/BeltHealth";
 import { Button, EmptyState, Panel } from "@/components/ui/primitives";
 import { useHotkeys, type Hotkey } from "@/hooks/useHotkeys";
 import type { useAlarm } from "@/hooks/useAlarm";
@@ -116,9 +115,10 @@ export function LiveMonitor({
   useHotkeys(hotkeys);
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_368px]">
-      {/* Main column */}
-      <div className="min-w-0 space-y-5">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_372px] xl:gap-7">
+      {/* Main column. The feed and its controls are one group and sit close
+          together; the telemetry beneath is a separate thought and gets air. */}
+      <div className="min-w-0">
         {running || status?.uri ? (
           <VideoPanel
             status={status}
@@ -145,7 +145,7 @@ export function LiveMonitor({
         )}
 
         {(running || status?.uri) && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-2">
             {running ? (
               <Button variant="danger" size="sm" onClick={stop} disabled={busy}>
                 <Square size={13} /> Stop stream
@@ -164,9 +164,11 @@ export function LiveMonitor({
               <Button size="sm">Change source</Button>
             </Link>
 
+            <span className="mx-1 hidden h-4 w-px bg-ash sm:inline-block" aria-hidden />
+
             <Button
               size="sm"
-              variant={alarm.enabled ? "outline" : "ghost"}
+              variant="ghost"
               onClick={() => void alarm.toggle()}
               aria-pressed={alarm.enabled}
               aria-label={
@@ -176,21 +178,26 @@ export function LiveMonitor({
               }
             >
               {alarm.enabled ? (
-                <Bell size={13} strokeWidth={1.25} />
+                <Bell size={13} strokeWidth={1.25} className="text-bone" />
               ) : (
                 <BellOff size={13} strokeWidth={1.25} />
               )}
-              {alarm.enabled ? "Alarm on" : "Alarm off"}
+              <span className={alarm.enabled ? "text-bone" : undefined}>
+                {alarm.enabled ? "Alarm on" : "Alarm off"}
+              </span>
             </Button>
 
+            {/* A discoverability aid, not an action. It should be findable and
+                otherwise invisible. */}
             <Button
-              size="sm"
+              size="icon"
               variant="ghost"
               onClick={() => setShowKeys((v) => !v)}
               aria-expanded={showKeys}
               aria-label="Show keyboard shortcuts"
+              title="Keyboard shortcuts — ?"
             >
-              <Keyboard size={13} strokeWidth={1.25} /> Keys
+              <Keyboard size={14} strokeWidth={1.25} />
             </Button>
 
             {error && (
@@ -200,7 +207,7 @@ export function LiveMonitor({
         )}
 
         {showKeys && (
-          <Panel className="px-4 py-3.5">
+          <Panel className="mt-3 px-4 py-3.5">
             <dl className="flex flex-wrap gap-x-7 gap-y-2.5">
               {hotkeys.map((k) => (
                 <div key={k.label} className="flex items-center gap-2.5">
@@ -215,30 +222,27 @@ export function LiveMonitor({
         )}
 
         {alarm.enabled && !alarm.armed && (
-          <p className="text-[0.8125rem] text-sev-medium">
+          <p className="mt-3 max-w-[62ch] text-[0.8125rem] leading-relaxed text-sev-medium">
             The browser blocked audio, so the alarm cannot sound. Click anywhere
             on the page, then switch the alarm off and on again.
           </p>
         )}
 
-        <StatsBar status={status} />
+        {/* Generous break: throughput is a different question from the feed. */}
+        <div className="mt-8">
+          <StatsBar status={status} />
+        </div>
       </div>
 
       {/* Right rail */}
-      <div className="flex min-w-0 flex-col gap-5">
+      <div className="flex min-w-0 flex-col gap-4">
         <AlertFeed
           alerts={alerts}
           onClear={clearAlerts}
           onRestore={restoreAlerts}
-          className="min-h-[320px] xl:h-[calc(100dvh-28rem)]"
+          className="min-h-[340px] xl:h-[calc(100dvh-30rem)]"
         />
-        <HealthGauge
-          bySeverity={summary?.by_severity ?? {}}
-          total={summary?.total ?? 0}
-          allTime={summary?.all_time}
-          windowHours={summary?.window_hours}
-        />
-        <DefectCounters counts={status?.counts ?? {}} />
+        <BeltHealth summary={summary} />
       </div>
     </div>
   );
