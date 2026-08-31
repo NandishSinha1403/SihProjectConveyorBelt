@@ -37,9 +37,12 @@ services:
       # CLAHE costs a few ms per frame that this instance does not have spare.
       - key: ENABLE_CLAHE
         value: "false"
-      # Set this to the Vercel production domain after the first frontend
-      # deploy. The regex below already covers preview URLs.
+      # The production frontend origins. A custom domain is NOT covered by the
+      # preview regex below, so it has to be named here explicitly.
+      #   https://sih.nandish.dev,https://<project>.vercel.app
       - key: CORS_ORIGINS
         sync: false
+      # Vercel mints a fresh domain per preview deployment, so an allow-list
+      # cannot name them all.
       - key: CORS_ORIGIN_REGEX
         value: ^https://.*\.vercel\.app$

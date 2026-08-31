@@ -75,6 +75,70 @@ and an allow-list cannot name them all.
 
 Redeploy the Render service for it to take effect.
 
+## 4. Custom domain — `sih.nandish.dev`
+
+At your DNS provider for `nandish.dev`, add one record:
+
+| Type | Name | Value |
+| --- | --- | --- |
+| `CNAME` | `sih` | `cname.vercel-dns.com` |
+
+Then Vercel → project → **Settings → Domains → Add** `sih.nandish.dev`. Vercel
+verifies the record and issues a TLS certificate automatically, usually within
+a minute.
+
+**Then go back and fix CORS.** The preview regex matches `*.vercel.app` and
+will not match a custom domain, so the API will start refusing the very origin
+you just set up. In Render → Environment:
+
+```
+CORS_ORIGINS = https://sih.nandish.dev,https://<project>.vercel.app
+```
+
+Keep the `vercel.app` entry so the Vercel dashboard link keeps working.
+
+### Optionally, give the API a matching subdomain
+
+`belt-sentinel-api.onrender.com` works fine, but a matching subdomain reads
+better and means the API URL never changes if you move host later:
+
+| Type | Name | Value |
+| --- | --- | --- |
+| `CNAME` | `api.sih` | `<your-service>.onrender.com` |
+
+Add `api.sih.nandish.dev` under Render → Settings → Custom Domains, then set
+`VITE_API_BASE=https://api.sih.nandish.dev` in Vercel and redeploy.
+
+Note this does **not** make the two same-origin — `sih.nandish.dev` and
+`api.sih.nandish.dev` are still different origins, so CORS still applies. It is
+cosmetic and portability, not a way to avoid the CORS step.
+
+---
+
+## Why not serve the model from Kaggle?
+
+Kaggle gives free T4s, so the question comes up. It is technically possible —
+run the API in a notebook and tunnel it out with ngrok. For this product it is
+the wrong shape:
+
+- **No speed to gain.** A laptop GPU already runs this at ~35 ms/frame. A T4
+  might reach ~15 ms, but a tunnel adds 200–400 ms of round trip. You would pay
+  latency for nothing, in a system whose entire claim is real-time.
+- **The URL changes every session.** ngrok issues a new hostname on each start,
+  so the frontend would need rebuilding and redeploying before every demo.
+- **Twelve-hour hard session cap**, and 30 GPU-hours a week. The session ends
+  mid-demo and the link dies with it.
+- **Unclear terms.** Serving traffic from a notebook is widely practised and
+  not clearly sanctioned. A session can be killed without warning.
+
+Bandwidth, for the record, is *not* the problem: a 960×540 JPEG at q80 is about
+24 KB, so 25 fps is roughly 4.7 Mbit/s each way — fine on ordinary wifi.
+
+Kaggle was the right tool for **training** — a one-shot batch job with no
+latency budget. Serving a live camera is the opposite kind of problem, and the
+camera is wherever you are. Real installations put a mini-PC or a Jetson beside
+the belt; your laptop already is that box.
+
 ---
 
 ## What does not work in the cloud, and why
