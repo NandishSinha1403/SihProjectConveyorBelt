@@ -89,7 +89,7 @@ This is pinned by tests — `python -m pytest tests/ -v` in `backend/`.
                           └────────┬─────────┘
                                    │  inference thread
                                    ▼
-             CLAHE ──▶ YOLO + ByteTrack ──▶ IncidentEngine
+        CLAHE (off) ──▶ YOLO + ByteTrack ──▶ IncidentEngine
                                    │              │
                     annotated frame│              │ open / update / close
                                    ▼              ▼
@@ -276,7 +276,7 @@ All in `backend/.env` (see `.env.example`):
 | `IMG_SIZE` | `640` | Detector input size; capture resolution is independent |
 | `ENABLE_CLAHE` | `false` | Contrast enhancement for dusty imagery — **off by default, see below** |
 | `CONFIRM_FRAMES` | `5` | Frames before a track becomes an incident |
-| `MAX_STREAM_FPS` | `20` | MJPEG output cap; does not affect inference |
+| `MAX_STREAM_FPS` | `30` | MJPEG output cap; does not affect inference. Above the camera's own rate it only costs bandwidth |
 | `LOOP_FILE_SOURCES` | `true` | Restart a video file when it ends |
 | `CORS_ORIGINS` | `localhost:5173` | Comma-separated allow-list |
 | `CORS_ORIGIN_REGEX` | *(empty)* | For Vercel's per-deployment preview domains |

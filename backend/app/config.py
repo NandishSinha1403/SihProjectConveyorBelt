@@ -36,7 +36,12 @@ class Settings(BaseSettings):
     # correct the moment training matches.
     enable_clahe: bool = False
     confirm_frames: int = 5
-    max_stream_fps: int = 20
+    # Cap on the MJPEG output rate. At 20 this was the pipeline's bottleneck:
+    # capture and inference both ran at 29.9 fps while only 19.0 fps reached the
+    # browser. Measured delivery against this value on a 30 fps camera --
+    # 20 -> 19.0 fps, 30 -> 27.8 fps, 60 -> 30.4 fps -- so 30 tracks a standard
+    # camera and anything above it only buys bandwidth (1.0 MB/s -> 2.0 MB/s).
+    max_stream_fps: int = 30
     loop_file_sources: bool = True
 
     # Server
