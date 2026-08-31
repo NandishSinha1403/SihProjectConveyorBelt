@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@/components/Router";
-import { Play, Square } from "lucide-react";
+import { Bell, BellOff, Keyboard, Play, Square } from "lucide-react";
 import { api } from "@/lib/api";
 import type { EventSocketState } from "@/hooks/useEventSocket";
 import type { IncidentSummary } from "@/lib/types";
@@ -10,12 +10,23 @@ import { AlertFeed } from "@/components/AlertFeed";
 import { HealthGauge } from "@/components/HealthGauge";
 import { DefectCounters } from "@/components/DefectCounters";
 import { Button, EmptyState, Panel } from "@/components/ui/primitives";
+import { useHotkeys, type Hotkey } from "@/hooks/useHotkeys";
+import type { useAlarm } from "@/hooks/useAlarm";
 
-export function LiveMonitor({ socket }: { socket: EventSocketState }) {
-  const { status, detections, alerts, clearAlerts } = socket;
+export function LiveMonitor({
+  socket,
+  alarm,
+}: {
+  socket: EventSocketState;
+  alarm: ReturnType<typeof useAlarm>;
+}) {
+  const { status, detections, alerts, clearAlerts, restoreAlerts } = socket;
   const [summary, setSummary] = useState<IncidentSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [overlay, setOverlay] = useState<"burned" | "canvas" | "off">("burned");
+  const [showKeys, setShowKeys] = useState(false);
 
   const running = Boolean(status?.running);
 
@@ -61,12 +72,62 @@ export function LiveMonitor({ socket }: { socket: EventSocketState }) {
     }
   };
 
+  const hotkeys = useMemo<Hotkey[]>(
+    () => [
+      {
+        key: " ",
+        label: "Space",
+        description: "Freeze or resume the display",
+        run: () => setPaused((p) => !p),
+      },
+      {
+        key: "s",
+        label: "S",
+        description: "Stop or restart the stream",
+        run: () => (running ? stop() : restart()),
+      },
+      {
+        key: "o",
+        label: "O",
+        description: "Cycle the detection overlay",
+        run: () =>
+          setOverlay((o) =>
+            o === "burned" ? "canvas" : o === "canvas" ? "off" : "burned",
+          ),
+      },
+      {
+        key: "a",
+        label: "A",
+        description: "Arm or silence the audible alarm",
+        run: () => void alarm.toggle(),
+      },
+      {
+        key: "?",
+        label: "?",
+        description: "Show these shortcuts",
+        run: () => setShowKeys((v) => !v),
+      },
+    ],
+    // stop/restart are stable enough for a shortcut table that only reads them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [running, alarm.toggle],
+  );
+
+  useHotkeys(hotkeys);
+
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_368px]">
       {/* Main column */}
       <div className="min-w-0 space-y-5">
         {running || status?.uri ? (
-          <VideoPanel status={status} detections={detections} />
+          <VideoPanel
+            status={status}
+            detections={detections}
+            paused={paused}
+            onPausedChange={setPaused}
+            overlay={overlay}
+            onOverlayChange={setOverlay}
+          />
         ) : (
           <Panel>
             <EmptyState
@@ -102,10 +163,62 @@ export function LiveMonitor({ socket }: { socket: EventSocketState }) {
             <Link to="/sources">
               <Button size="sm">Change source</Button>
             </Link>
+
+            <Button
+              size="sm"
+              variant={alarm.enabled ? "outline" : "ghost"}
+              onClick={() => void alarm.toggle()}
+              aria-pressed={alarm.enabled}
+              aria-label={
+                alarm.enabled
+                  ? "Audible alarm is on. Silence it."
+                  : "Audible alarm is off. Sound an alarm on critical defects."
+              }
+            >
+              {alarm.enabled ? (
+                <Bell size={13} strokeWidth={1.25} />
+              ) : (
+                <BellOff size={13} strokeWidth={1.25} />
+              )}
+              {alarm.enabled ? "Alarm on" : "Alarm off"}
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowKeys((v) => !v)}
+              aria-expanded={showKeys}
+              aria-label="Show keyboard shortcuts"
+            >
+              <Keyboard size={13} strokeWidth={1.25} /> Keys
+            </Button>
+
             {error && (
               <span className="text-[0.8125rem] text-sev-critical">{error}</span>
             )}
           </div>
+        )}
+
+        {showKeys && (
+          <Panel className="px-4 py-3.5">
+            <dl className="flex flex-wrap gap-x-7 gap-y-2.5">
+              {hotkeys.map((k) => (
+                <div key={k.label} className="flex items-center gap-2.5">
+                  <dt className="rounded-[5px] border border-ash px-1.5 py-0.5 font-mono text-[0.6875rem] text-bone">
+                    {k.label}
+                  </dt>
+                  <dd className="text-[0.8125rem] text-fog">{k.description}</dd>
+                </div>
+              ))}
+            </dl>
+          </Panel>
+        )}
+
+        {alarm.enabled && !alarm.armed && (
+          <p className="text-[0.8125rem] text-sev-medium">
+            The browser blocked audio, so the alarm cannot sound. Click anywhere
+            on the page, then switch the alarm off and on again.
+          </p>
         )}
 
         <StatsBar status={status} />
@@ -116,6 +229,7 @@ export function LiveMonitor({ socket }: { socket: EventSocketState }) {
         <AlertFeed
           alerts={alerts}
           onClear={clearAlerts}
+          onRestore={restoreAlerts}
           className="min-h-[320px] xl:h-[calc(100dvh-28rem)]"
         />
         <HealthGauge

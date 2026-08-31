@@ -44,9 +44,11 @@ export function DefectCounters({ counts }: { counts: Record<string, number> }) {
                 <span className="tnum text-[0.9375rem] text-bone">{count}</span>
               </div>
               <div className="h-px w-full bg-ash">
+                {/* scaleX rather than width: width animates layout every frame,
+                    transform is composited. */}
                 <div
-                  className="h-px bg-bone transition-[width] duration-500 ease-[var(--ease-focus)]"
-                  style={{ width: `${(count / max) * 100}%` }}
+                  className="h-px origin-left bg-bone transition-transform duration-500 ease-[var(--ease-focus)]"
+                  style={{ transform: `scaleX(${max > 0 ? count / max : 0})` }}
                 />
               </div>
             </li>

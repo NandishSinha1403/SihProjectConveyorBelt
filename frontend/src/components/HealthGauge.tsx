@@ -88,6 +88,14 @@ export function HealthGauge({
             )}
           </p>
 
+          {/* A gauge pinned at zero reads as broken unless it says why. */}
+          {score === 0 && total > 0 && (
+            <p className="mt-2 text-[0.8125rem] leading-relaxed text-sev-critical">
+              The index bottoms out at zero once this many serious defects are
+              on record — the belt needs inspection, not a finer score.
+            </p>
+          )}
+
           {rows.length > 0 && (
             <ul className="mt-4 space-y-2">
               {rows.map(({ sev, count }) => {

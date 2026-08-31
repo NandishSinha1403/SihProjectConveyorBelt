@@ -29,6 +29,9 @@ export function Sources({ status }: { status: StreamStatus | null }) {
   const [starting, setStarting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [networkUri, setNetworkUri] = useState("");
+  // Deleting footage is permanent and sits one click from Stream. A second
+  // deliberate click is enough of a gate without a modal interrupting the task.
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadVideos = useCallback(async () => {
@@ -84,6 +87,15 @@ export function Sources({ status }: { status: StreamStatus | null }) {
   };
 
   const remove = async (name: string) => {
+    if (confirmDelete !== name) {
+      setConfirmDelete(name);
+      window.setTimeout(
+        () => setConfirmDelete((c) => (c === name ? null : c)),
+        4000,
+      );
+      return;
+    }
+    setConfirmDelete(null);
     try {
       await api.deleteVideo(name);
       await loadVideos();
@@ -157,8 +169,8 @@ export function Sources({ status }: { status: StreamStatus | null }) {
                 </div>
                 <div className="h-px w-full bg-ash">
                   <div
-                    className="h-px bg-bone transition-[width] duration-200 ease-[var(--ease-focus)]"
-                    style={{ width: `${uploadPct}%` }}
+                    className="h-px origin-left bg-bone transition-transform duration-200 ease-[var(--ease-focus)]"
+                    style={{ transform: `scaleX(${uploadPct / 100})` }}
                   />
                 </div>
               </div>
@@ -217,14 +229,25 @@ export function Sources({ status }: { status: StreamStatus | null }) {
                         )}
                         Stream
                       </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        title="Delete"
-                        onClick={() => remove(video.name)}
-                      >
-                        <Trash2 size={13} strokeWidth={1.25} />
-                      </Button>
+                      {confirmDelete === video.name ? (
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => remove(video.name)}
+                          aria-label={`Confirm deleting ${video.name} permanently`}
+                        >
+                          <Trash2 size={12} strokeWidth={1.25} /> Delete for good
+                        </Button>
+                      ) : (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label={`Delete ${video.name}`}
+                          onClick={() => remove(video.name)}
+                        >
+                          <Trash2 size={13} strokeWidth={1.25} />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </li>

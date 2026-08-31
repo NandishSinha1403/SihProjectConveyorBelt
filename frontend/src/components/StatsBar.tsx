@@ -11,6 +11,26 @@ import { Panel, Stat } from "@/components/ui/primitives";
  * genuine real-time feed under load shows it climbing. It gets equal billing
  * with frame rate for that reason.
  */
+/**
+ * Turn the detector's own description into something an operator can read.
+ *
+ * "YOLO belt_v1.pt on mps" is a developer string; the person watching a belt
+ * needs to know whether the thing making decisions is trained or synthetic.
+ */
+function describeDetector(detector: string | null | undefined): string {
+  if (!detector) return "No detector loaded";
+  if (detector.toLowerCase().includes("synthetic") || detector.startsWith("Mock")) {
+    return "Demo detector — synthetic defects, not a trained model";
+  }
+  if (detector.includes("TRACKING UNAVAILABLE")) {
+    return "Trained model, but defect tracking is unavailable — no alerts will be raised";
+  }
+  const device = /on (\w+)$/.exec(detector)?.[1];
+  const accelerator =
+    device === "mps" ? "Apple GPU" : device === "cuda" ? "NVIDIA GPU" : "CPU";
+  return `Trained model, running on ${accelerator}`;
+}
+
 export function StatsBar({ status }: { status: StreamStatus | null }) {
   const running = Boolean(status?.running);
   const capture = status?.capture_fps ?? 0;
@@ -47,7 +67,6 @@ export function StatsBar({ status }: { status: StreamStatus | null }) {
           label="Skipped"
           value={running || skipped ? skipped.toLocaleString() : "—"}
           tone={skipRatio > 0.5 ? "warn" : "default"}
-          hint="Frames that passed while the model was busy. Proof the feed is processed live, not buffered."
         />
         <Stat
           label="Processed"
@@ -61,8 +80,40 @@ export function StatsBar({ status }: { status: StreamStatus | null }) {
         />
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-ash/70 pt-3 text-[0.75rem] text-fog">
-        <span className="truncate">{status?.detector ?? "No detector"}</span>
+      {/* The skip count is the product's central claim, so it is stated on the
+          page rather than hidden in a tooltip that never fires on touch and
+          cannot be reached from a keyboard. */}
+      <p className="mt-4 max-w-[68ch] border-t border-ash/70 pt-3 text-[0.8125rem] leading-relaxed text-fog">
+        {running ? (
+          <>
+            <span className="text-bone">
+              Skipped frames are the proof this is live.
+            </span>{" "}
+            They arrived while the model was still working on an earlier one, so
+            they were dropped rather than queued — exactly what a camera does.
+            {skipRatio > 0.05 && (
+              <>
+                {" "}
+                Right now{" "}
+                <span className="tnum text-sev-medium">
+                  {(skipRatio * 100).toFixed(0)}%
+                </span>{" "}
+                are being dropped, which means detection is running slower than
+                the belt is being filmed.
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            Start a source to see live throughput. Skipped frames — dropped
+            rather than queued while the model was busy — are what separates
+            monitoring a feed from processing a file.
+          </>
+        )}
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[0.75rem] text-fog">
+        <span className="truncate">{describeDetector(status?.detector)}</span>
         {status?.width ? (
           <span className="tnum">
             {status.width}&times;{status.height}
@@ -73,14 +124,6 @@ export function StatsBar({ status }: { status: StreamStatus | null }) {
           <span className="tnum">
             {status?.open_incidents ?? 0} defect
             {(status?.open_incidents ?? 0) === 1 ? "" : "s"} in view
-          </span>
-        )}
-        {skipRatio > 0.05 && (
-          <span
-            className="tnum text-sev-medium"
-            title="The model is slower than the source, so frames are dropped rather than queued — exactly as they would be with a live camera."
-          >
-            {(skipRatio * 100).toFixed(0)}% of frames dropped
           </span>
         )}
         {status?.error && (

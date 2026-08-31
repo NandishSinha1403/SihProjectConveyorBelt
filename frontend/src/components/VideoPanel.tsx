@@ -14,9 +14,21 @@ import type { DetectionBox, StreamStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/primitives";
 
+type Overlay = "burned" | "canvas" | "off";
+
+const OVERLAY_LABEL: Record<Overlay, string> = {
+  burned: "Boxes drawn by the server",
+  canvas: "Boxes drawn by the browser",
+  off: "Overlay off",
+};
+
 interface Props {
   status: StreamStatus | null;
   detections: DetectionBox[];
+  paused: boolean;
+  onPausedChange: (paused: boolean) => void;
+  overlay: Overlay;
+  onOverlayChange: (overlay: Overlay) => void;
 }
 
 /**
@@ -29,9 +41,14 @@ interface Props {
  *              the WebSocket events. Crisper, and lets the operator toggle the
  *              overlay off to inspect the belt surface itself.
  */
-export function VideoPanel({ status, detections }: Props) {
-  const [overlay, setOverlay] = useState<"burned" | "canvas" | "off">("burned");
-  const [paused, setPaused] = useState(false);
+export function VideoPanel({
+  status,
+  detections,
+  paused,
+  onPausedChange,
+  overlay,
+  onOverlayChange,
+}: Props) {
   const [epoch, setEpoch] = useState(() => Date.now());
   const [imgFailed, setImgFailed] = useState(false);
 
@@ -127,10 +144,29 @@ export function VideoPanel({ status, detections }: Props) {
             onError={() => setImgFailed(true)}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-[0.8125rem] text-fog">
-              {paused ? "Feed paused" : "Stream unavailable"}
-            </p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+            {paused ? (
+              <p className="text-[0.8125rem] text-fog">
+                Display frozen. The pipeline is still running.
+              </p>
+            ) : (
+              <>
+                <p className="max-w-[46ch] text-[0.8125rem] leading-relaxed text-fog">
+                  The video connection dropped. Detection may still be running —
+                  check the throughput figures below.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setImgFailed(false);
+                    setEpoch(Date.now());
+                  }}
+                >
+                  Reconnect the feed
+                </Button>
+              </>
+            )}
           </div>
         )}
 
@@ -177,28 +213,34 @@ export function VideoPanel({ status, detections }: Props) {
         {/* Controls */}
         <div className="absolute bottom-3 right-3 flex items-center gap-1 sm:bottom-auto sm:top-3">
           <Button
-            size="icon"
+            size="sm"
             variant="ghost"
-            className="bg-obsidian/80 backdrop-blur-sm hover:bg-obsidian hover:text-bone"
+            className="gap-1.5 rounded-[5px] bg-obsidian/80 px-2 backdrop-blur-sm hover:bg-obsidian hover:text-bone"
             onClick={() =>
-              setOverlay((o) =>
-                o === "burned" ? "canvas" : o === "canvas" ? "off" : "burned",
+              onOverlayChange(
+                overlay === "burned" ? "canvas" : overlay === "canvas" ? "off" : "burned",
               )
             }
-            title={`Overlay: ${overlay} — click to cycle (server-drawn → browser-drawn → off)`}
+            aria-label={`${OVERLAY_LABEL[overlay]}. Press O or activate to change.`}
           >
             <Layers
-              size={15}
+              size={14}
               strokeWidth={1.25}
               className={overlay === "off" ? "text-fog" : "text-bone"}
             />
+            {/* Naming the current mode beats making the operator click and
+                observe to find out which of three states they are in. */}
+            <span className="hidden text-[0.6875rem] normal-case tracking-normal sm:inline">
+              {overlay === "burned" ? "Server" : overlay === "canvas" ? "Browser" : "Off"}
+            </span>
           </Button>
           <Button
             size="icon"
             variant="ghost"
             className="bg-obsidian/80 backdrop-blur-sm hover:bg-obsidian hover:text-bone"
-            onClick={() => setPaused((p) => !p)}
-            title={paused ? "Resume feed" : "Freeze feed"}
+            onClick={() => onPausedChange(!paused)}
+            aria-label={paused ? "Resume the feed (Space)" : "Freeze the display (Space)"}
+            title={paused ? "Resume feed — Space" : "Freeze display — Space"}
           >
             {paused ? <Play size={15} strokeWidth={1.25} /> : <Pause size={15} strokeWidth={1.25} />}
           </Button>
@@ -206,7 +248,8 @@ export function VideoPanel({ status, detections }: Props) {
             href={api.snapshotUrl(annotate)}
             target="_blank"
             rel="noreferrer"
-            title="Open current frame as an image"
+            title="Open the current frame as an image"
+            aria-label="Open the current frame as an image in a new tab"
           >
             <Button
               size="icon"
@@ -222,6 +265,7 @@ export function VideoPanel({ status, detections }: Props) {
             variant="ghost"
             className="bg-obsidian/80 backdrop-blur-sm hover:bg-obsidian hover:text-bone"
             onClick={toggleFullscreen}
+            aria-label="Toggle fullscreen"
             title="Fullscreen"
           >
             <Expand size={15} strokeWidth={1.25} />

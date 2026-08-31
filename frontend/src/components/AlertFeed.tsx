@@ -1,4 +1,5 @@
-import { ExternalLink } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ExternalLink, Undo2 } from "lucide-react";
 import type { Incident } from "@/lib/types";
 import { api } from "@/lib/api";
 import { cn, formatClock, formatDuration } from "@/lib/utils";
@@ -13,13 +14,37 @@ import {
 export function AlertFeed({
   alerts,
   onClear,
+  onRestore,
   className,
 }: {
   alerts: Incident[];
   onClear: () => void;
+  onRestore: (alerts: Incident[]) => void;
   className?: string;
 }) {
   const critical = alerts.filter((a) => a.severity === "critical").length;
+
+  // Clearing the rail is destructive and one click away. A confirm dialog for
+  // something this cheap is friction in the wrong place -- undo is the right
+  // guard: the action stays instant and stays reversible.
+  const [undoable, setUndoable] = useState<Incident[] | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  const clear = () => {
+    const snapshot = alerts;
+    onClear();
+    setUndoable(snapshot);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setUndoable(null), 8000);
+  };
+
+  const undo = () => {
+    if (undoable) onRestore(undoable);
+    setUndoable(null);
+    window.clearTimeout(timer.current);
+  };
 
   return (
     <Panel className={cn("flex flex-col", className)}>
@@ -32,17 +57,28 @@ export function AlertFeed({
                 {critical} critical
               </span>
             )}
-            {alerts.length > 0 && (
-              <Button size="sm" variant="ghost" onClick={onClear}>
-                Clear
+            {undoable ? (
+              <Button size="sm" variant="outline" onClick={undo}>
+                <Undo2 size={12} strokeWidth={1.25} /> Undo
               </Button>
+            ) : (
+              alerts.length > 0 && (
+                <Button size="sm" variant="ghost" onClick={clear}>
+                  Clear
+                </Button>
+              )
             )}
           </div>
         }
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {alerts.length === 0 ? (
+        {alerts.length === 0 && undoable ? (
+          <EmptyState
+            title={`Cleared ${undoable.length} alert${undoable.length === 1 ? "" : "s"}`}
+            hint="They are still in the incident history. Undo restores the rail; the button disappears in a few seconds."
+          />
+        ) : alerts.length === 0 ? (
           <EmptyState
             title="No alerts yet"
             hint="Confirmed defects appear here the moment the model has seen them across enough consecutive frames to rule out a false positive."

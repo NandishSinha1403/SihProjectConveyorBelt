@@ -19,6 +19,7 @@ export interface EventSocketState {
   frame: FrameEvent | null;
   alerts: Incident[];
   clearAlerts: () => void;
+  restoreAlerts: (alerts: Incident[]) => void;
 }
 
 /**
@@ -40,6 +41,17 @@ export function useEventSocket(): EventSocketState {
   const closedRef = useRef(false);
 
   const clearAlerts = useCallback(() => setAlerts([]), []);
+
+  /** Put a cleared rail back, merging anything that arrived in the meantime. */
+  const restoreAlerts = useCallback((restored: Incident[]) => {
+    setAlerts((live) => {
+      const ids = new Set(live.map((a) => a.id));
+      return [...live, ...restored.filter((a) => !ids.has(a.id))].slice(
+        0,
+        MAX_ALERTS,
+      );
+    });
+  }, []);
 
   // Seed the rail from recent history so a page reload mid-shift does not
   // present an empty alert feed while defects are actively on the belt.
@@ -148,5 +160,13 @@ export function useEventSocket(): EventSocketState {
     };
   }, []);
 
-  return { connected, status, detections, frame, alerts, clearAlerts };
+  return {
+    connected,
+    status,
+    detections,
+    frame,
+    alerts,
+    clearAlerts,
+    restoreAlerts,
+  };
 }

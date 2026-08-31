@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 import type { ReactNode, ButtonHTMLAttributes, HTMLAttributes } from "react";
 import { SEVERITY_META } from "@/lib/severity";
@@ -60,14 +61,13 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: "sm" | "md" | "icon";
 };
 
-export function Button({
-  className,
-  variant = "ghost",
-  size = "md",
-  ...props
-}: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { className, variant = "ghost", size = "md", ...props },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       className={cn(
         "inline-flex select-none items-center justify-center gap-2",
         "rounded-none uppercase tracking-[0.02em]",
@@ -87,7 +87,7 @@ export function Button({
       {...props}
     />
   );
-}
+});
 
 /* -- Severity badge -------------------------------------------------------
    The prism, applied as taxonomy. Colour only ever appears here and on the

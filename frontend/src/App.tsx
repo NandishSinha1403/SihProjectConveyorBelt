@@ -7,6 +7,8 @@ import { Sources } from "@/pages/Sources";
 import { Incidents } from "@/pages/Incidents";
 import { Settings } from "@/pages/Settings";
 import { cn } from "@/lib/utils";
+import { Announcer } from "@/components/Announcer";
+import { useAlarm } from "@/hooks/useAlarm";
 
 const NAV = [
   { to: "/", label: "Monitor", icon: MonitorPlay },
@@ -27,6 +29,11 @@ function Shell() {
   const socket = useEventSocket();
   const [incidentKey, setIncidentKey] = useState(0);
 
+  // Announcements and the alarm belong to the session, not to one tab. An
+  // operator reviewing incident history must still be told when a new critical
+  // defect appears on the belt.
+  const alarm = useAlarm(socket.alerts);
+
   // The incident table is a snapshot; nudge it when a new alert lands so a
   // user sitting on that page sees new rows without reaching for refresh.
   useEffect(() => setIncidentKey((k) => k + 1), [socket.alerts.length]);
@@ -37,6 +44,7 @@ function Shell() {
 
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">
+      <Announcer alerts={socket.alerts} />
       {/* ---- Rail: sidebar on laptop, bottom tab bar on phones ------------
           A horizontally scrolling strip of nav is a desktop pattern wedged
           onto a phone. Thumbs reach the bottom edge, so that is where the
@@ -116,7 +124,7 @@ function Shell() {
         </header>
 
         <main className="flex-1 px-4 pb-8 sm:px-6 lg:px-8">
-          {path === "/" && <LiveMonitor socket={socket} />}
+          {path === "/" && <LiveMonitor socket={socket} alarm={alarm} />}
           {path === "/incidents" && <Incidents refreshKey={incidentKey} />}
           {path === "/sources" && <Sources status={socket.status} />}
           {path === "/settings" && <Settings />}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, ImageOff, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { SEVERITY_META } from "@/lib/severity";
@@ -146,8 +146,21 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
                   {items.map((incident) => (
                     <tr
                       key={incident.id}
+                      // A row that opens evidence is a control, so it has to
+                      // behave like one: focusable, named, and operable with
+                      // Enter or Space. Without this the audit trail simply
+                      // does not exist for a keyboard or screen-reader user.
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Incident ${incident.id}, ${incident.label}, ${incident.severity} severity. Open details.`}
                       onClick={() => setSelected(incident)}
-                      className="cursor-pointer transition-colors duration-200 ease-[var(--ease-focus)] hover:bg-raised/60"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelected(incident);
+                        }
+                      }}
+                      className="cursor-pointer transition-colors duration-200 ease-[var(--ease-focus)] hover:bg-raised/60 focus-visible:bg-raised/60 focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-bone"
                     >
                       <td className="tnum px-4 py-3 text-fog">#{incident.id}</td>
                       <td className="tnum whitespace-nowrap px-4 py-3 text-fog">
@@ -188,11 +201,13 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
             {/* Mobile cards */}
             <ul className="divide-y divide-ash/50 md:hidden">
               {items.map((incident) => (
-                <li
-                  key={incident.id}
-                  onClick={() => setSelected(incident)}
-                  className="flex cursor-pointer gap-3 px-4 py-3.5 transition-colors duration-200 ease-[var(--ease-focus)] active:bg-raised/60"
-                >
+                <li key={incident.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(incident)}
+                    aria-label={`Incident ${incident.id}, ${incident.label}, ${incident.severity} severity. Open details.`}
+                    className="flex w-full gap-3 px-4 py-3.5 text-left transition-colors duration-200 ease-[var(--ease-focus)] active:bg-raised/60"
+                  >
                   {incident.snapshot && (
                     <img
                       src={api.incidentSnapshotUrl(incident.id)}
@@ -210,7 +225,8 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
                       #{incident.id} · {formatDateTime(incident.opened_at)} ·{" "}
                       {(incident.confidence * 100).toFixed(0)}%
                     </p>
-                  </div>
+                    </div>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -286,10 +302,44 @@ function IncidentDrawer({
   incident: Incident;
   onClose: () => void;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    // Remember where focus came from so dismissing returns the user to the row
+    // they opened, rather than dropping them at the document root.
+    const opener = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+
+      // Trap: a dialog the user can Tab out of is a dialog in name only.
+      const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusable || focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      opener?.focus?.();
+    };
   }, [onClose]);
 
   return (
@@ -298,22 +348,32 @@ function IncidentDrawer({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
         className={cn(
           "animate-rise max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-t-[15px] border border-ash/70 bg-panel sm:rounded-[15px]",
         )}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={`Incident ${incident.id}`}
+        aria-labelledby={`incident-${incident.id}-title`}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-ash/70 bg-panel px-4 py-3.5">
           <div className="flex min-w-0 items-center gap-3">
-            <h3 className="truncate text-[1.375rem] leading-none tracking-[-0.01em] text-bone">
+            <h3
+              id={`incident-${incident.id}-title`}
+              className="truncate text-[1.375rem] leading-none tracking-[-0.01em] text-bone"
+            >
               {incident.label}
             </h3>
             <SeverityBadge severity={incident.severity} />
           </div>
-          <Button size="icon" variant="ghost" onClick={onClose}>
+          <Button
+            ref={closeRef}
+            size="icon"
+            variant="ghost"
+            onClick={onClose}
+            aria-label="Close incident details"
+          >
             <X size={16} strokeWidth={1.25} />
           </Button>
         </div>
