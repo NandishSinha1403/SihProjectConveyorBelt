@@ -200,20 +200,44 @@ def test_healthy_joint_stays_informational():
     assert score_severity(joint, 1280, 720) is Severity.INFO
 
 
-def test_cracked_joint_escalates_to_joint_damage():
-    """The specific failure mode this project targets."""
-    joint = Detection("belt_joint", 0.95, 0, 100, 1280, 180, track_id=1)
-    crack = Detection("crack", 0.8, 400, 110, 460, 170, track_id=2)
-    assess_joints([joint, crack])
-    assert joint.cls == "joint_damage"
+# A splice band: full belt width, thin laterally. This is the shape that made
+# the first two versions of the rule wrong.
+def _splice():
+    return Detection("belt_joint", 0.95, 0, 300, 1280, 360, track_id=1)
+
+
+@pytest.mark.parametrize("name,defect", [
+    # The four geometries that constitute belt joint rupture. The middle two
+    # are the dangerous ones and were both missed by the containment rule:
+    # a tear running out of a splice is mostly *outside* it.
+    ("crack inside the splice", Detection("crack", 0.8, 500, 310, 560, 350, track_id=2)),
+    ("tear propagating out of it", Detection("tear", 0.8, 600, 320, 640, 700, track_id=3)),
+    ("rip running through it", Detection("tear", 0.8, 600, 40, 640, 690, track_id=4)),
+    ("hole at the splice edge", Detection("hole", 0.8, 700, 340, 760, 400, track_id=5)),
+])
+def test_damage_meeting_a_splice_escalates_to_joint_damage(name, defect):
+    """The headline failure mode of the problem statement."""
+    joint = _splice()
+    assess_joints([joint, defect])
+    assert joint.cls == "joint_damage", f"{name} did not escalate"
     assert score_severity(joint, 1280, 720) is Severity.CRITICAL
 
 
-def test_distant_defect_does_not_escalate_a_joint():
-    joint = Detection("belt_joint", 0.95, 0, 100, 1280, 180, track_id=1)
-    scratch = Detection("scratch", 0.6, 400, 500, 460, 560, track_id=2)
-    assess_joints([joint, scratch])
-    assert joint.cls == "belt_joint"
+@pytest.mark.parametrize("name,other", [
+    ("healthy splice, nothing near it", None),
+    ("tear well below the splice",
+     Detection("tear", 0.8, 600, 500, 640, 700, track_id=6)),
+    ("one-pixel graze along the band edge",
+     Detection("tear", 0.8, 600, 359, 601, 700, track_id=7)),
+    ("scratch elsewhere on the belt",
+     Detection("scratch", 0.6, 400, 500, 460, 560, track_id=8)),
+])
+def test_healthy_splice_is_not_escalated(name, other):
+    """A splice is an expected feature of the belt. It must not alarm anyone."""
+    joint = _splice()
+    assess_joints([joint] + ([other] if other else []))
+    assert joint.cls == "belt_joint", f"{name} wrongly escalated"
+    assert score_severity(joint, 1280, 720) is Severity.INFO
 
 
 # -- incident lifecycle ------------------------------------------------------

@@ -34,10 +34,21 @@ BASE_SEVERITY: dict[str, Severity] = {
     "belt_joint": Severity.INFO,
 }
 
-# A joint is escalated when a crack/tear sits substantially *inside* it. This is
-# a containment ratio, not IoU: joint boxes span the full belt width, so a small
-# crack within one scores an IoU near zero and would never trigger.
-JOINT_CONTAINMENT = 0.50
+# A joint is escalated when damage touches the splice band at all.
+#
+# Two earlier attempts got this wrong, both for the same reason: they asked how
+# much of one box was inside the other. IoU fails because a splice spans the
+# full belt width and a small crack inside it scores near zero. Containment
+# fails the other way -- it catches a crack sitting wholly within the band, but
+# a tear *propagating out of* the splice is mostly outside it (measured: 0.11),
+# and a rip running through one is 0.09. Those are the actual rupture cases and
+# both were missed.
+#
+# What matters physically is simply whether damage meets the splice. A splice is
+# a line across the entire belt, so damage anywhere along that line is damage at
+# the splice. The only thing to exclude is a one-pixel graze, hence a noise
+# floor expressed as a fraction of the band's own area.
+JOINT_TOUCH_MIN_FRAC = 0.005
 # Fraction of frame height above which a longitudinal defect is rip-through risk.
 LONGITUDINAL_HEIGHT_FRAC = 0.45
 # Height/width ratio at which a defect counts as longitudinal.
@@ -55,12 +66,18 @@ def _bump(sev: Severity, steps: int = 1) -> Severity:
     return order[min(len(order) - 1, order.index(sev) + steps)]
 
 
-def _containment(inner: Detection, outer: Detection) -> float:
-    """Fraction of ``inner``'s area that falls inside ``outer``."""
-    ix1, iy1 = max(inner.x1, outer.x1), max(inner.y1, outer.y1)
-    ix2, iy2 = min(inner.x2, outer.x2), min(inner.y2, outer.y2)
-    inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
-    return inter / inner.area if inner.area > 0 else 0.0
+def _intersection(a: Detection, b: Detection) -> float:
+    """Overlapping area of two boxes, in square pixels."""
+    ix1, iy1 = max(a.x1, b.x1), max(a.y1, b.y1)
+    ix2, iy2 = min(a.x2, b.x2), min(a.y2, b.y2)
+    return max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
+
+
+def touches_joint(defect: Detection, joint: Detection) -> bool:
+    """Does this defect meet the splice band, beyond a noise-floor graze?"""
+    if joint.area <= 0:
+        return False
+    return _intersection(defect, joint) >= JOINT_TOUCH_MIN_FRAC * joint.area
 
 
 def assess_joints(detections: list[Detection]) -> list[Detection]:
@@ -76,7 +93,7 @@ def assess_joints(detections: list[Detection]) -> list[Detection]:
 
     threats = [d for d in detections if d.cls in ("crack", "tear", "hole")]
     for joint in joints:
-        if any(_containment(t, joint) >= JOINT_CONTAINMENT for t in threats):
+        if any(touches_joint(t, joint) for t in threats):
             joint.cls = "joint_damage"
     return detections
 

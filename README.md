@@ -120,10 +120,18 @@ A detector emits hundreds of boxes for a single tear. Operators need events, so
 [`app/pipeline/events.py`](backend/app/pipeline/events.py) does three things:
 
 1. **Joint rupture assessment.** A healthy splice is a normal feature of the
-   belt and stays informational. A splice with a crack or tear *inside* it is
-   reclassified as `joint_damage` and escalated to CRITICAL — the exact failure
-   mode this project targets. (Containment ratio, not IoU: joint boxes span the
-   full belt width, so a small crack inside one scores an IoU near zero.)
+   belt and stays informational. A splice that damage *meets* is reclassified as
+   `joint_damage` and escalated to CRITICAL — the exact failure mode this
+   project targets.
+
+   Getting the geometry right took three attempts, and the wrong ones are
+   instructive. IoU fails because a splice spans the full belt width, so a crack
+   inside one scores near zero. Containment fails the other way: it catches a
+   crack sitting wholly within the band, but a tear *propagating out of* a
+   splice is mostly outside it (measured: 0.11 contained) and a rip running
+   through one is 0.09 — the two actual rupture cases, both missed. A splice is
+   a line across the whole belt, so the question is simply whether damage meets
+   it, with a noise floor to reject a one-pixel graze.
 2. **Geometry-driven severity.** A long, narrow, longitudinal defect is the
    rip-through case and escalates hardest. An isolated scratch stays LOW.
 3. **Temporal confirmation.** A track must survive N consecutive frames before it
