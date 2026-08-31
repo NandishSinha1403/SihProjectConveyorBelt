@@ -1,6 +1,7 @@
 """Locally attached camera (laptop webcam, USB industrial camera)."""
 from __future__ import annotations
 
+import glob
 import logging
 import os
 import sys
@@ -93,7 +94,15 @@ def probe_devices(max_index: int = 5) -> list[dict]:
 
     OpenCV has no portable device enumeration, so we open each index briefly and
     keep the ones that yield a frame.
+
+    On a cloud host there are no video devices at all, and probing six absent
+    indices wastes seconds on every call for a guaranteed empty list. If the
+    platform exposes no /dev/video* nodes, say so immediately.
     """
+    if sys.platform.startswith("linux") and not glob.glob("/dev/video*"):
+        log.info("No video devices present; skipping camera probe")
+        return []
+
     found: list[dict] = []
     for idx in range(max_index + 1):
         cap = cv2.VideoCapture(idx)

@@ -221,6 +221,25 @@ uses a one-stage detector. `evaluate.py` prints your numbers beside theirs.
 
 ---
 
+## Deploying
+
+Frontend on Vercel, API on Render — both free tiers, both configured in the
+repo ([`vercel.json`](vercel.json), [`render.yaml`](render.yaml)). Full steps
+and the CORS loop are in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+One number to set expectations before you rely on it. Render's free instance is
+512 MB and **0.1 vCPU**, with no GPU:
+
+| Where | Per frame | Throughput |
+| --- | --- | --- |
+| M2 laptop (Apple GPU) | ~35 ms | **~25 fps** |
+| One full CPU core | 83 ms | ~12 fps |
+| Render free tier | ~830 ms | **~1.2 fps** |
+
+The deployment is the right thing to put in a submission form. It is not where
+to run the demo — that belongs on a laptop, which is also the honest topology,
+since a cloud container cannot see a camera anyway.
+
 ## Configuration
 
 All in `backend/.env` (see `.env.example`):

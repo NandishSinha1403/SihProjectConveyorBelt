@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { api, wsUrl } from "@/lib/api";
 import type {
   DetectionBox,
   FrameEvent,
@@ -81,8 +81,7 @@ export function useEventSocket(): EventSocketState {
     const connect = () => {
       if (closedRef.current) return;
 
-      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const ws = new WebSocket(`${proto}//${window.location.host}/ws/events`);
+      const ws = new WebSocket(wsUrl("/ws/events"));
       socketRef.current = ws;
 
       ws.onopen = () => {

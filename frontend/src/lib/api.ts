@@ -1,3 +1,26 @@
+/**
+ * Where the backend lives.
+ *
+ * Empty in development and in any single-origin deployment, so every path stays
+ * relative and Vite's proxy handles it. Set VITE_API_BASE when the API is on a
+ * different origin -- a Vercel frontend talking to a Render backend, say.
+ */
+export const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
+
+/** Absolute URL for an API path, honouring API_BASE. */
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
+/** ws:// or wss:// URL for a socket path, derived from API_BASE. */
+export function wsUrl(path: string): string {
+  if (!API_BASE) {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${window.location.host}${path}`;
+  }
+  return `${API_BASE.replace(/^http/, "ws")}${path}`;
+}
+
 import type {
   DeviceInfo,
   Incident,
@@ -8,7 +31,7 @@ import type {
 } from "./types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(apiUrl(path), {
     ...init,
     headers:
       init?.body instanceof FormData
@@ -43,7 +66,7 @@ export const api = {
       method: "DELETE",
     }),
   thumbnailUrl: (name: string) =>
-    `/api/sources/thumbnail/${encodeURIComponent(name)}`,
+    apiUrl(`/api/sources/thumbnail/${encodeURIComponent(name)}`),
 
   /**
    * Upload with progress. Uses XHR rather than fetch because fetch still has no
@@ -59,7 +82,7 @@ export const api = {
       form.append("file", file);
 
       const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/sources/upload");
+      xhr.open("POST", apiUrl("/api/sources/upload"));
 
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) onProgress?.((e.loaded / e.total) * 100);
@@ -94,9 +117,9 @@ export const api = {
     }),
   stopStream: () => request<StreamStatus>("/api/stream/stop", { method: "POST" }),
   mjpegUrl: (annotate: boolean, cacheBuster: number) =>
-    `/api/stream/mjpeg?annotate=${annotate ? 1 : 0}&t=${cacheBuster}`,
+    apiUrl(`/api/stream/mjpeg?annotate=${annotate ? 1 : 0}&t=${cacheBuster}`),
   snapshotUrl: (annotate: boolean) =>
-    `/api/stream/snapshot?annotate=${annotate ? 1 : 0}`,
+    apiUrl(`/api/stream/snapshot?annotate=${annotate ? 1 : 0}`),
 
   // Incidents
   listIncidents: (params: {
@@ -117,12 +140,12 @@ export const api = {
     }>(`/api/incidents?${q}`);
   },
   incidentSummary: () => request<IncidentSummary>("/api/incidents/summary"),
-  incidentSnapshotUrl: (id: number) => `/api/incidents/${id}/snapshot`,
+  incidentSnapshotUrl: (id: number) => apiUrl(`/api/incidents/${id}/snapshot`),
   exportCsvUrl: (severity?: string, cls?: string) => {
     const q = new URLSearchParams();
     if (severity) q.set("severity", severity);
     if (cls) q.set("cls", cls);
-    return `/api/incidents/export.csv?${q}`;
+    return apiUrl(`/api/incidents/export.csv?${q}`);
   },
 
   // Settings

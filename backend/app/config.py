@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    # Vercel builds a fresh preview domain per deployment, so an allow-list
+    # cannot name them all. This regex is matched in addition to the list.
+    cors_origin_regex: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

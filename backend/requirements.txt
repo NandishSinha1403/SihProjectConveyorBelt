@@ -3,9 +3,14 @@ uvicorn[standard]>=0.30
 python-multipart>=0.0.9
 pydantic>=2.7
 pydantic-settings>=2.3
-opencv-python>=4.10
 numpy>=1.26
-# Detection stack (optional at runtime: DETECTOR=mock works without these)
+
+# Headless OpenCV: the desktop build links libGL/libgthread, which slim
+# container images do not ship, so the full package fails at import on a
+# server. Nothing here draws to a window.
+opencv-python-headless>=4.10
+
+# Detection stack. Optional at runtime: DETECTOR=mock runs without it.
 ultralytics>=8.3
 torch>=2.3
 torchvision>=0.18
@@ -13,5 +18,3 @@ torchvision>=0.18
 # track ids, detections still draw, and the incident engine silently discards
 # every one of them -- an empty alert feed with no error anywhere.
 lapx>=0.5.11
-# Training only
-# roboflow>=1.1

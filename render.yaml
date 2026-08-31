@@ -1,0 +1,45 @@
+# Render blueprint for the Belt Sentinel API.
+#
+#   render.com -> New -> Blueprint -> point at this repo
+#
+# Read the trade-off before relying on this for a live demo. Render's free
+# instance is 512 MB of RAM and 0.1 vCPU. Measured on a full CPU core this
+# model runs at 83 ms/frame; at a tenth of a core that is roughly 1.2 fps, so a
+# hosted stream will crawl compared with the ~25 fps it reaches on a laptop.
+# The deployment is genuinely useful as a public, always-addressable API and as
+# proof the architecture runs anywhere. It is not the demo.
+services:
+  - type: web
+    name: belt-sentinel-api
+    runtime: python
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements-cpu.txt
+    # Uvicorn must bind Render's injected $PORT, not our local default.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+      # Free instances have no GPU. Say so explicitly rather than probing.
+      - key: DEVICE
+        value: cpu
+      # Weights ship in the repo, so the trained model is available on boot.
+      - key: DETECTOR
+        value: yolo
+      - key: MODEL_PATH
+        value: models/belt_v1.pt
+      # 0.1 vCPU cannot feed a 20 fps stream; asking for less wasted work keeps
+      # the box responsive rather than permanently saturated.
+      - key: MAX_STREAM_FPS
+        value: "5"
+      # CLAHE costs a few ms per frame that this instance does not have spare.
+      - key: ENABLE_CLAHE
+        value: "false"
+      # Set this to the Vercel production domain after the first frontend
+      # deploy. The regex below already covers preview URLs.
+      - key: CORS_ORIGINS
+        sync: false
+      - key: CORS_ORIGIN_REGEX
+        value: ^https://.*\.vercel\.app$
