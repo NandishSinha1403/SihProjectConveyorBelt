@@ -452,3 +452,66 @@ def test_mock_defects_travel_along_the_measured_belt_direction():
             f"defect travelled across the belt rather than along it "
             f"(dx={dx:.0f}, dy={dy:.0f})"
         )
+
+
+# -- tracker lifecycle -------------------------------------------------------
+
+def test_detector_reset_does_not_break_tracking():
+    """reset() must not leave the tracker unusable.
+
+    Ultralytics guards tracker setup with `hasattr(predictor, "trackers")`, so
+    assigning None satisfies the check, skips registration, and every later call
+    either raises or returns boxes with no ids. The second case is the dangerous
+    one: detections still draw, but nothing has an identity, so the incident
+    engine discards them all and the alert feed stays silently empty.
+
+    Skipped when no trained weights are installed.
+    """
+    from app.config import settings
+
+    if not settings.model_file.exists():
+        pytest.skip("no trained weights installed")
+
+    from app.pipeline.detector import YoloDetector
+
+    detector = YoloDetector()
+    assert detector.tracking_ok, "tracking unavailable — is lapx installed?"
+
+    rng = np.random.default_rng(0)
+    frame = rng.integers(0, 255, (480, 640, 3), dtype=np.uint8).astype(np.uint8)
+
+    detector.reset()
+    for _ in range(3):
+        detector.detect(frame)
+
+    predictor = getattr(detector._model, "predictor", None)
+    assert predictor is not None
+    assert getattr(predictor, "trackers", None) is not None, (
+        "reset() left predictor.trackers unusable"
+    )
+
+
+def test_incident_engine_discards_untracked_detections_loudly():
+    """Document the coupling that made the tracker bug invisible.
+
+    Detections without a track id are dropped on purpose — without identity the
+    engine would open a fresh incident every frame. That makes a broken tracker
+    present as 'everything works, but no alerts', which is why
+    YoloDetector verifies tracking at startup.
+    """
+    opened = []
+    engine = IncidentEngine(confirm_frames=2, on_open=lambda i, d: opened.append(i))
+
+    for frame_id in range(1, 30):
+        engine.process(
+            [Detection("tear", 0.9, 100, 10, 140, 400, track_id=None)],
+            frame_id, 1280, 720,
+        )
+    assert opened == [], "untracked detections must not open incidents"
+
+    for frame_id in range(1, 5):
+        engine.process(
+            [Detection("tear", 0.9, 100, 10, 140, 400, track_id=42)],
+            frame_id, 1280, 720,
+        )
+    assert len(opened) == 1, "tracked detections must open exactly one incident"

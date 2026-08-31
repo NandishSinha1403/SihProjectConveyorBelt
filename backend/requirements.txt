@@ -9,5 +9,9 @@ numpy>=1.26
 ultralytics>=8.3
 torch>=2.3
 torchvision>=0.18
+# ByteTrack's assignment solver. Without it Ultralytics returns boxes with no
+# track ids, detections still draw, and the incident engine silently discards
+# every one of them -- an empty alert feed with no error anywhere.
+lapx>=0.5.11
 # Training only
 # roboflow>=1.1

@@ -244,7 +244,40 @@ class YoloDetector(Detector):
         if unknown:
             log.warning("Model emits classes outside the known vocabulary: %s", unknown)
 
+        self.tracking_ok = True
         self._warmup()
+        self._verify_tracking()
+
+    def _verify_tracking(self) -> None:
+        """Confirm the tracker actually assigns ids, and say so loudly if not.
+
+        Without ids the incident engine cannot tell one frame's tear from the
+        next one's, so it discards every detection and the system looks alive
+        while producing no alerts at all. That failure is invisible unless it is
+        checked for explicitly, so it is checked for explicitly.
+        """
+        import numpy as np
+
+        probe = np.random.default_rng(0).integers(
+            0, 255, (settings.img_size, settings.img_size, 3), dtype=np.uint8
+        ).astype("uint8")
+        try:
+            for _ in range(2):
+                self._model.track(
+                    probe, imgsz=settings.img_size, conf=0.01,
+                    device=self._device, persist=True,
+                    tracker="bytetrack.yaml", verbose=False,
+                )
+            self.tracking_ok = True
+        except Exception as exc:  # noqa: BLE001
+            self.tracking_ok = False
+            log.error(
+                "Object tracking is unavailable (%s: %s). Detections will still "
+                "be drawn, but no incidents can be raised because defects "
+                "cannot be followed between frames. Install the tracker "
+                "dependency:  pip install lapx",
+                type(exc).__name__, exc,
+            )
 
     def _warmup(self) -> None:
         """Run one dummy inference so the first real frame isn't 3s slow."""
@@ -256,10 +289,22 @@ class YoloDetector(Detector):
             log.debug("Detector warmup failed", exc_info=True)
 
     def reset(self) -> None:
-        # Drop ByteTrack state so track ids restart with each stream session.
+        """Drop ByteTrack state so track ids restart with each stream session.
+
+        The attribute must be *deleted*, not set to None. Ultralytics guards
+        tracker setup with ``hasattr(predictor, "trackers") and persist``, so a
+        None value satisfies the check, tracker registration is skipped, and
+        every later call fails with "'NoneType' object is not subscriptable" --
+        or silently returns boxes with no ids, which is worse: detections still
+        render, but nothing has an identity, so the incident engine discards
+        them all and the alert feed stays empty for no visible reason.
+        """
+        predictor = getattr(self._model, "predictor", None)
+        if predictor is None:
+            return
         try:
-            if getattr(self._model, "predictor", None) is not None:
-                self._model.predictor.trackers = None
+            if hasattr(predictor, "trackers"):
+                del predictor.trackers
         except Exception:  # noqa: BLE001
             log.debug("Could not reset tracker state", exc_info=True)
 
@@ -299,7 +344,8 @@ class YoloDetector(Detector):
 
     @property
     def description(self) -> str:
-        return f"YOLO {settings.model_file.name} on {self._device}"
+        base = f"YOLO {settings.model_file.name} on {self._device}"
+        return base if self.tracking_ok else f"{base} — TRACKING UNAVAILABLE"
 
 
 def _resolve_device(preference: str) -> str:
