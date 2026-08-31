@@ -25,6 +25,43 @@ Three ways to set it:
    monitoring that camera automatically on boot, so a power cycle at the plant
    resumes unattended.
 
+## Local USB cameras: what to expect
+
+`device://` is the least reliable of the four source types, and it is worth
+knowing why before you depend on one for a demonstration.
+
+**A capture index is not a camera identity.** OpenCV assigns indices per process
+and they drift when a camera is plugged in or removed while the backend runs.
+Measured here: a backend running for an hour offered a single `device://2` on a
+machine whose cameras were really at 0 and 1, while a process started at that
+same moment saw `device://0` and `device://1`. Restart the backend after
+plugging or unplugging a camera.
+
+**`Camera 0` is a position, not a name.** OpenCV exposes no device names, and the
+operating system's enumeration order is *not* OpenCV's index order — verified on
+macOS 26, where AVFoundation listed the built-in camera first while OpenCV opened
+the USB camera at index 0. Identify a camera by streaming it and looking at the
+picture, not by its number.
+
+**Cheap UVC webcams are not all equal.** One measured 0.6, 2.2 and 9.6 fps across
+three consecutive runs of the same test — at 1080p, 720p and 480p alike — while
+the built-in camera held 29.7 fps in the same process. Requesting MJPEG via
+`CAP_PROP_FOURCC` is not supported by OpenCV's AVFoundation backend and does not
+help. If a camera behaves this way, confirm it in Photo Booth or QuickTime: if it
+is also choppy there the fault is the cable, the port or the hardware.
+
+`DeviceSource` requests **1280×720** rather than the camera's native resolution.
+The detector runs at 640px regardless, so 1080p buys nothing the model can use
+while costing USB bandwidth, CLAHE time and MJPEG encode time — measured at
+140.9 ms per frame versus 57.1 ms at 720p.
+
+**For anything that matters, prefer a network camera.** RTSP and MJPEG-over-HTTP
+sources have no index space, so they are immune to all of the above: a newly
+connected IP camera works immediately with no restart. That is also the honest
+deployment topology, since a camera on a gantry above a belt is an IP camera.
+
+Diagnosis steps are in [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+
 ## Why an uploaded video is a fair stand-in for a camera
 
 The concern with testing against a file is that the model could be handed the

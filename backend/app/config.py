@@ -26,7 +26,15 @@ class Settings(BaseSettings):
     img_size: int = 640
 
     # Pipeline
-    enable_clahe: bool = True
+    # CLAHE is applied to the frame handed to the detector, but nothing in
+    # training/ applies it -- so enabling it trains on raw pixels and serves
+    # enhanced ones. Measured with belt_v1.pt on this project's own footage:
+    # 58 detections over 150 frames with it off against 7 with it on, and
+    # 95.6 ms per frame against 140.9 ms. Off by default until the training
+    # pipeline applies the same enhancement; the knob stays because the
+    # reasoning behind it is sound (Guo et al. sec 4.1 on dust) and it becomes
+    # correct the moment training matches.
+    enable_clahe: bool = False
     confirm_frames: int = 5
     max_stream_fps: int = 20
     loop_file_sources: bool = True

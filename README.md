@@ -109,8 +109,21 @@ the same bus without touching any of the above.
 backend/    FastAPI service — sources, pipeline, incident store, REST + WebSocket
 frontend/   React + Vite + Tailwind dashboard
 training/   Dataset download, class unification, training, evaluation
-docs/       Camera integration guide, model report
+docs/       Camera integration, datasets, deployment, troubleshooting, model report
+DESIGN.md   The dashboard's design system — the source of the colour and type
+            tokens in frontend/src/index.css
 ```
+
+### Documentation
+
+| File | Covers |
+| --- | --- |
+| [`docs/CAMERA_INTEGRATION.md`](docs/CAMERA_INTEGRATION.md) | Source URIs, adding a camera type, USB vs IP cameras, mounting |
+| [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Black or frozen feeds, missing detections, slow inference, CORS |
+| [`docs/DATASETS.md`](docs/DATASETS.md) | What the public data contains, class mapping, attribution |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Vercel + Render, and the CORS loop |
+| [`docs/model_report.md`](docs/model_report.md) | Measured metrics for the shipped weights |
+| [`DESIGN.md`](DESIGN.md) | Colour, type and spacing tokens for the dashboard |
 
 ---
 
@@ -259,9 +272,30 @@ All in `backend/.env` (see `.env.example`):
 | `MODEL_PATH` | `models/belt_v1.pt` | Trained weights |
 | `DEVICE` | `auto` | `auto` picks CUDA, then MPS, then CPU |
 | `CONF_THRESHOLD` | `0.35` | Below the paper's 0.50 — catches early wear |
-| `ENABLE_CLAHE` | `true` | Contrast enhancement for dusty imagery |
+| `IOU_THRESHOLD` | `0.45` | NMS overlap threshold |
+| `IMG_SIZE` | `640` | Detector input size; capture resolution is independent |
+| `ENABLE_CLAHE` | `false` | Contrast enhancement for dusty imagery — **off by default, see below** |
 | `CONFIRM_FRAMES` | `5` | Frames before a track becomes an incident |
 | `MAX_STREAM_FPS` | `20` | MJPEG output cap; does not affect inference |
+| `LOOP_FILE_SOURCES` | `true` | Restart a video file when it ends |
+| `CORS_ORIGINS` | `localhost:5173` | Comma-separated allow-list |
+| `CORS_ORIGIN_REGEX` | *(empty)* | For Vercel's per-deployment preview domains |
+
+**Why CLAHE is off.** It is applied to the frame given to the detector, but
+nothing in `training/` applies it — so turning it on trains the model on raw
+pixels and serves it enhanced ones. That mismatch is expensive, measured with
+`belt_v1.pt` on this project's own footage:
+
+| | `ENABLE_CLAHE=false` | `ENABLE_CLAHE=true` |
+| --- | --- | --- |
+| Detections over 150 video frames | **58** | 7 |
+| Still images with any detection | **13 / 56** | 11 / 56 |
+| Inference per frame @1080p | **95.6 ms** | 140.9 ms |
+
+An 88% drop in detections, and 48% slower. The reasoning behind CLAHE is sound —
+Guo et al. identify dust and low contrast as the dominant cause of missed
+detections — so the knob stays, and it becomes the right default the moment
+`training/` applies the same enhancement. Until then it is a loss.
 
 Confidence, IoU, CLAHE, confirmation frames and the stream cap are also tunable
 live from the dashboard's Settings page.
@@ -272,13 +306,22 @@ live from the dashboard's Settings page.
 
 | Endpoint | Purpose |
 | --- | --- |
+| `GET /api/sources/videos` | Test videos on the server |
 | `POST /api/sources/upload` | Store a test video (no decoding) |
+| `DELETE /api/sources/videos/{name}` | Remove a stored video |
+| `GET /api/sources/thumbnail/{name}` | First frame of a stored video |
 | `GET /api/sources/devices` | Enumerate attached cameras |
 | `POST /api/stream/start` | Begin processing a source URI |
+| `POST /api/stream/stop` | Stop the running session |
+| `GET /api/stream/status` | Source, FPS, frames skipped, open incidents |
 | `GET /api/stream/mjpeg` | Live annotated video (`?annotate=0` for clean) |
+| `GET /api/stream/snapshot` | Single current frame as JPEG |
 | `WS /ws/events` | Detections, incidents, pipeline stats |
 | `GET /api/incidents` | Filterable incident history |
+| `GET /api/incidents/summary` | Aggregates for the belt-health gauge |
+| `GET /api/incidents/{id}/snapshot` | Photographic evidence for one incident |
 | `GET /api/incidents/export.csv` | Maintenance report export |
+| `GET /api/settings` · `PATCH /api/settings` | Read and change runtime knobs |
 | `GET /api/health` | Service and stream status |
 
 Interactive docs at <http://localhost:8000/docs>.

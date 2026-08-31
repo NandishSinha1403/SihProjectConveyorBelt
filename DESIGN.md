@@ -1,5 +1,39 @@
-# Vivid+Co — Style Reference
+# Belt Sentinel — Design System
 > prismatic light through obsidian
+
+The colour, type and spacing reference for the control-room dashboard. These are
+not aspirational: the palette below is the source of the custom properties in
+[`frontend/src/index.css`](frontend/src/index.css), and the values match — the
+canvas `#101010`, the hairline `#403f3f`, the muted `#6f879c` and the alert red
+`#ff2a2a` are all defined there and used through Tailwind tokens (`bg-pitch`,
+`border-ash`, `text-fog`, `text-sev-critical`).
+
+Two conventions the dashboard adds on top of this reference:
+
+- **Severity has its own scale**, keyed to the five incident levels: `info
+  #6f879c`, `low #2a7fff`, `medium #f5c451`, `high #ff7a3d`, `critical #ff2a2a`
+  (`SEVERITY_META` in `frontend/src/lib/severity.ts`).
+
+  The intent is that a box burned onto the video matches its card in the alert
+  rail, and `severity.ts` says in a comment that the two palettes are the same.
+  **They are not — all five have drifted.** `SEVERITY_COLORS` in
+  `backend/app/pipeline/annotate.py` stores BGR; converted to hex:
+
+  | Severity | Backend draws | Frontend shows |
+  | --- | --- | --- |
+  | info | `#b0b0b0` grey | `#6f879c` blue-grey |
+  | low | `#60c4de` cyan | `#2a7fff` blue |
+  | medium | `#fabe40` | `#f5c451` |
+  | high | `#ff8030` | `#ff7a3d` |
+  | critical | `#f53c3c` | `#ff2a2a` |
+
+  Medium, high and critical are near enough to read as the same colour; **info
+  and low are visibly different**. Fixing this means rewriting `SEVERITY_COLORS`
+  as BGR of the frontend values — remember OpenCV takes `(B, G, R)`, which is
+  how the drift started. Change the two together, or delete the claim.
+- **Use the tokens, never raw Tailwind colours.** A one-off `amber-500` in a
+  warning banner is the usual way this drifts; `sev-medium` already means
+  exactly that.
 
 **Theme:** dark
 
