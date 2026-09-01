@@ -21,6 +21,7 @@ class RuntimeSettings(BaseModel):
     iou_threshold: float | None = Field(default=None, ge=0.01, le=0.99)
     max_stream_fps: int | None = Field(default=None, ge=1, le=60)
     confirm_frames: int | None = Field(default=None, ge=1, le=60)
+    incident_confidence_threshold: float | None = Field(default=None, ge=0.01, le=0.99)
 
 
 def _current() -> dict:
@@ -30,6 +31,7 @@ def _current() -> dict:
         "iou_threshold": settings.iou_threshold,
         "max_stream_fps": settings.max_stream_fps,
         "confirm_frames": settings.confirm_frames,
+        "incident_confidence_threshold": settings.incident_confidence_threshold,
         "detector": settings.detector,
         "model_path": settings.model_path,
         "img_size": settings.img_size,
@@ -52,5 +54,7 @@ async def update_settings(patch: RuntimeSettings) -> dict:
     session = manager.session
     if session is not None and patch.confirm_frames is not None:
         session.incidents._confirm_frames = patch.confirm_frames
+    if session is not None and patch.incident_confidence_threshold is not None:
+        session.incidents._confidence_threshold = patch.incident_confidence_threshold
 
     return _current()

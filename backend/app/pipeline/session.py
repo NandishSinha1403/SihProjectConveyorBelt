@@ -59,6 +59,7 @@ class StreamSession:
 
         self.incidents = IncidentEngine(
             confirm_frames=settings.confirm_frames,
+            confidence_threshold=settings.incident_confidence_threshold,
             on_open=self._on_incident_open,
             on_update=self._on_incident_update,
             on_close=self._on_incident_close,

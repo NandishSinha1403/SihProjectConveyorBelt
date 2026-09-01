@@ -105,6 +105,7 @@ export interface RuntimeSettings {
   iou_threshold: number;
   max_stream_fps: number;
   confirm_frames: number;
+  incident_confidence_threshold: number;
   detector: string;
   model_path: string;
   img_size: number;

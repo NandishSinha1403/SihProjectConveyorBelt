@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     # correct the moment training matches.
     enable_clahe: bool = False
     confirm_frames: int = 5
+    # Below this, a detection still renders on the live stream but is never
+    # promoted into an incident.
+    incident_confidence_threshold: float = 0.50
     # Cap on the MJPEG output rate. At 20 this was the pipeline's bottleneck:
     # capture and inference both ran at 29.9 fps while only 19.0 fps reached the
     # browser. Measured delivery against this value on a 30 fps camera --

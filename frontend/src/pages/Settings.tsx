@@ -36,6 +36,7 @@ export function Settings() {
         iou_threshold: draft.iou_threshold,
         max_stream_fps: draft.max_stream_fps,
         confirm_frames: draft.confirm_frames,
+        incident_confidence_threshold: draft.incident_confidence_threshold,
       });
       setSettings(next);
       setDraft(next);
@@ -94,6 +95,21 @@ export function Settings() {
             value={draft.confirm_frames ?? settings.confirm_frames}
             onChange={(v) => setDraft((d) => ({ ...d, confirm_frames: v }))}
             format={(v) => `${v} frames`}
+          />
+          <Slider
+            label="Incident confidence threshold"
+            hint="Detections below this confidence still render on the live stream but are never promoted into an incident."
+            min={0.05}
+            max={0.95}
+            step={0.05}
+            value={
+              draft.incident_confidence_threshold ??
+              settings.incident_confidence_threshold
+            }
+            onChange={(v) =>
+              setDraft((d) => ({ ...d, incident_confidence_threshold: v }))
+            }
+            format={(v) => v.toFixed(2)}
           />
           <Slider
             label="Stream frame rate cap"

@@ -166,11 +166,13 @@ class IncidentEngine:
     def __init__(
         self,
         confirm_frames: int = 5,
+        confidence_threshold: float = 0.5,
         on_open: Callable[[Incident, Detection], None] | None = None,
         on_update: Callable[[Incident], None] | None = None,
         on_close: Callable[[Incident], None] | None = None,
     ) -> None:
         self._confirm_frames = max(1, confirm_frames)
+        self._confidence_threshold = confidence_threshold
         self._on_open = on_open
         self._on_update = on_update
         self._on_close = on_close
@@ -209,6 +211,11 @@ class IncidentEngine:
                 # Landmarks, not events. Rendered and returned to the client,
                 # but deliberately never advanced into a track, so they cannot
                 # open an incident however long they stay in frame.
+                continue
+            if det.confidence < self._confidence_threshold:
+                # Below the operator's confidence bar. Still rendered and
+                # returned to the client, but not advanced into a track, so it
+                # never opens an incident.
                 continue
             seen.add(det.track_id)
             self._advance(det, frame_id, frame_w, frame_h)
