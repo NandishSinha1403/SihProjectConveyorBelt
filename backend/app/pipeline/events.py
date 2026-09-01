@@ -119,6 +119,11 @@ class Incident:
     severity: Severity
     confidence: float
     opened_at: float
+    # Database row id, filled in once the incident is persisted. The engine's
+    # own `id` is a per-session counter, but every REST route -- including the
+    # snapshot endpoint the dashboard loads thumbnails from -- is keyed on the
+    # row id, so that is what has to go out on the wire.
+    db_id: int | None = None
     closed_at: float | None = None
     first_frame: int = 0
     last_frame: int = 0
@@ -131,7 +136,11 @@ class Incident:
 
     def to_dict(self) -> dict:
         return {
-            "id": self.id,
+            # Prefer the persisted id so a client can fetch this incident and
+            # its snapshot straight back from the API. Falls back to the engine
+            # id only when the insert failed, which keeps the alert visible
+            # rather than dropping it.
+            "id": self.db_id if self.db_id is not None else self.id,
             "track_id": self.track_id,
             "cls": self.cls,
             "label": self.label,

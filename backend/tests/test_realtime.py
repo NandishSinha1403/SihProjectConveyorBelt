@@ -251,6 +251,28 @@ def test_joint_rupture_opens_a_critical_incident():
     assert opened[0].label == "Belt Joint Rupture"
 
 
+def test_published_incident_carries_the_database_id():
+    """The dashboard fetches snapshots by the id it received over the socket.
+
+    The engine numbers incidents from 1 per session, but every REST route is
+    keyed on the database row id. Publishing the engine id meant every live
+    alert thumbnail requested /api/incidents/12/snapshot and got a 404, while
+    the same incident sat in the database as row 1924.
+    """
+    opened = []
+    engine = IncidentEngine(confirm_frames=1, on_open=lambda i, d: opened.append(i))
+    engine.process([Detection("tear", 0.9, 600, 40, 640, 660, track_id=1)],
+                   1, 1280, 720)
+
+    incident = opened[0]
+    assert incident.id == 1                      # engine counter
+    assert incident.to_dict()["id"] == 1         # no row id yet -> falls back
+
+    incident.db_id = 1924                        # what the store hands back
+    assert incident.to_dict()["id"] == 1924
+    assert incident.id == 1, "engine id must stay stable for track bookkeeping"
+
+
 def test_defects_beside_a_joint_are_reported_separately():
     """A tear next to the splice is a tear. Only a separated splice is a rupture."""
     engine = IncidentEngine(confirm_frames=1)

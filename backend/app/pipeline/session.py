@@ -185,8 +185,11 @@ class StreamSession:
         snapshot = self._save_snapshot(incident, det)
         incident.snapshot = snapshot
         try:
-            self._db_ids[incident.id] = get_db().insert_incident(
-                self._session_id, incident, snapshot)
+            row_id = get_db().insert_incident(self._session_id, incident, snapshot)
+            self._db_ids[incident.id] = row_id
+            # Set before publishing: the payload carries this id, and the client
+            # uses it to request the snapshot thumbnail.
+            incident.db_id = row_id
         except Exception:  # noqa: BLE001 - never let a DB error kill the pipeline
             log.exception("Failed to persist incident %d", incident.id)
         bus.publish("incident.opened", incident.to_dict())
