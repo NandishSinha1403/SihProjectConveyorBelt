@@ -1,4 +1,6 @@
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/fraunces";
+@import "@fontsource/ibm-plex-mono";
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
@@ -46,9 +48,22 @@
   --color-sev-info: #6f879c;
   --color-ok: #2aff2a;
 
+  /* -- Signal: shell chrome, never an alert -------------------------------
+     Every common hue is already spoken for by severity (red/orange/amber/
+     blue) or health (green), so the nav's own accent has to live outside
+     that family to stay unambiguous at a glance. Acid lime does that and
+     appears nowhere except nav fills, active states and the settings panel
+     eyebrow -- it never touches a detection, a card, or an alert. */
+  --color-signal: #b7ff3a;
+  --color-signal-dim: #8fce22;
+  --color-signal-ink: #0d1400;
+
   /* -- Type -------------------------------------------------------------- */
   --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Brand/display voice only -- wordmark, panel titles, the settings panel's
+     item labels. Never body copy or data. */
+  --font-display: "Fraunces Variable", "Fraunces", ui-serif, Georgia, serif;
 
   /* Fixed rem scale. Product UI is read at consistent DPI, and a fluid
      heading that shrinks inside a rail looks worse, not better. */
@@ -103,6 +118,10 @@
   --color-sev-low: #1f5fd9;
   --color-sev-info: #5c6773;
   --color-ok: #178a3e;
+
+  --color-signal: #6ca80f;
+  --color-signal-dim: #588c0a;
+  --color-signal-ink: #f7ffe9;
 }
 
 @layer base {
@@ -118,6 +137,10 @@
 
   body {
     background-color: var(--color-obsidian);
+    background-image:
+      linear-gradient(var(--color-panel) 1px, transparent 1px),
+      linear-gradient(90deg, var(--color-panel) 1px, transparent 1px);
+    background-size: 64px 64px;
     color: var(--color-bone);
     font-family: var(--font-sans);
     font-size: var(--text-body);
