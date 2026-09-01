@@ -1,0 +1,13 @@
+run          belt_v2 (Kaggle)
+trained      2026-09-01 02:58 UTC
+host         Kaggle 2x T4
+model        yolo11s, warm-started from backend/models/belt_v1.pt
+dataset      training/data/rig_dataset (own rig footage, specialised)
+epochs       120 at 640px
+classes      tear hole joint_damage
+train/val    130/28 images
+best         mAP@.5 85.6%, mAP@.5:.95 49.1%, P 85.7%, R 76.5%
+sha256       d260d1504463af6c4f7c125c9f6299a74268fc0b7f0fd26196359a305c4c1f96
+
+Specialised to the prototype rig. NOT comparable to belt_v1's public-
+data numbers, and expected to do poorly on industrial belt imagery.
