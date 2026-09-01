@@ -92,14 +92,26 @@ service boots with a real model rather than the mock.
 
 1. **vercel.com → Add New → Project**, import this repository.
 2. Vercel reads [`vercel.json`](../vercel.json); leave the framework preset alone.
-3. Add one environment variable:
+3. Add the environment variables:
 
    | Name | Value |
    | --- | --- |
    | `VITE_API_BASE` | `https://<your-service>.onrender.com` |
+   | `VITE_SUPABASE_URL` | Rig-telemetry project URL, e.g. `https://<ref>.supabase.co` |
+   | `VITE_SUPABASE_ANON_KEY` | That project's **anon / publishable** key |
 
-   No trailing slash. The WebSocket URL is derived from it, so `https://`
-   becomes `wss://` automatically.
+   No trailing slash on `VITE_API_BASE`. The WebSocket URL is derived from it,
+   so `https://` becomes `wss://` automatically.
+
+   The two `VITE_SUPABASE_*` values feed the 3D Model tab, and point at the
+   **rig-telemetry** Supabase project — a different one from the incident
+   history in step 1. Omit them and the tab still renders the model, but reads
+   `OFFLINE` forever.
+
+   > **Never** use `SUPABASE_SERVICE_KEY` here. Anything prefixed `VITE_` is
+   > compiled into the JavaScript bundle and readable by every visitor; the
+   > service key bypasses row-level security entirely. The anon key is the one
+   > the table's RLS policies are written against.
 4. Deploy.
 
 ## 4. Close the CORS loop

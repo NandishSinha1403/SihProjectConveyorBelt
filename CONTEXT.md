@@ -81,6 +81,12 @@ The requirement that a track persist across several consecutive frames before it
 becomes an incident. What separates a real defect from a one-frame artefact.
 _Avoid_: debounce, validation, filtering
 
+**Incident threshold**:
+The confidence a detection must carry before it is eligible to become an
+incident, set above the detector's own threshold. A detection below it is still
+drawn and streamed — it is declined an incident, not hidden.
+_Avoid_: confidence threshold (that is the detector's, and a different number)
+
 **Severity**:
 The urgency of an incident, from INFO through CRITICAL, derived from its class
 and its geometry. A property of an incident, never a category of defect.
@@ -110,12 +116,30 @@ confirmed, camera-detected incident — it is not interchangeable with what the
 `Live monitor` tab reports.
 _Avoid_: digital twin, camera feed, incident, detection
 
+**Belt-monitor node**:
+The ESP32 board mounted on the rig, carrying an accelerometer and an LDR array.
+It writes readings to its own Supabase project and takes no commands back — the
+3D Model can watch it, never drive it.
+_Avoid_: sensor, controller, device, IoT node
+
+**Reading**:
+One row from the belt-monitor node — vibration, raw LDR, light percentage and
+the node's own status — at roughly one a second. The sensor-side counterpart of
+a detection, and equally ephemeral.
+_Avoid_: sample, measurement, telemetry, datapoint
+
+**Node status**:
+The `NORMAL` or `WARNING` field the node computes onboard and stamps on each
+reading. Distinct from severity: it is the node's own verdict about light
+reaching the LDR array, owing nothing to the detector or the incident engine.
+_Avoid_: severity, alarm, state
+
 ## Training and data
 
 **Rig**:
 The physical prototype conveyor this project demonstrates on, as distinguished
 from the industrial belts in public datasets. The two look almost nothing alike.
-See 3D Model for the rendered, simulated stand-in for this same rig.
+See 3D Model for the rendered view of this same rig.
 _Avoid_: prototype, test bench, model belt
 
 **Negative**:

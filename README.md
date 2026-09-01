@@ -25,6 +25,7 @@ analytics and digital twin attach without rework.
 | [The real-time guarantee](#the-real-time-guarantee) | Why a video file is an honest stand-in for a camera |
 | [From detections to incidents](#from-detections-to-incidents) | Turning thousands of boxes into a handful of events |
 | [Models](#models) | `belt_v1` and `belt_v2`, and when to use each |
+| [The 3D Model tab](#the-3d-model-tab) | The sensor rig, rendered and fed by live hardware |
 | [Training on your own belt](#training-on-your-own-belt) | The labelling and training toolchain |
 | [Configuration](#configuration) · [API](#api) · [Deployment](#deployment) | Reference |
 
@@ -161,7 +162,7 @@ backend/     FastAPI service — sources, pipeline, incident store, REST + WebSo
 frontend/    React + Vite + Tailwind dashboard
 training/    Frame extraction, labelling tool, dataset splitting, training, evaluation
 docs/        Camera integration, datasets, deployment, troubleshooting, model report
-DESIGN.md    The dashboard's design system — source of the tokens in frontend/src/index.css
+DESIGN.md    The dashboard's design system — why the tokens in frontend/src/index.css are what they are
 ```
 
 ### Documentation
@@ -169,11 +170,11 @@ DESIGN.md    The dashboard's design system — source of the tokens in frontend/
 | File | Covers |
 | --- | --- |
 | [`docs/CAMERA_INTEGRATION.md`](docs/CAMERA_INTEGRATION.md) | Source URIs, adding a camera type, USB vs IP cameras, mounting |
-| [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Black or frozen feeds, missing detections, slow inference, CORS |
+| [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Black or frozen feeds, missing detections, slow inference, CORS, a 3D Model tab stuck `OFFLINE` |
 | [`docs/DATASETS.md`](docs/DATASETS.md) | Public data contents, class mapping, attribution |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Vercel + Render, and the CORS loop |
 | [`docs/model_report.md`](docs/model_report.md) | Measured metrics for the shipped weights |
-| [`DESIGN.md`](DESIGN.md) | Colour, type and spacing tokens for the dashboard |
+| [`DESIGN.md`](DESIGN.md) | Colour, type and spacing tokens, and the severity palette's known drift |
 | [`CONTEXT.md`](CONTEXT.md) | The project's vocabulary — what a defect, an incident and a joint rupture each mean |
 | [`docs/adr/`](docs/adr/) | Why the load-bearing decisions were made the way they were |
 
@@ -226,6 +227,15 @@ frames before raising an incident, which suppresses the small-object false
 positives Guo et al. identify as the standard failure mode of one-stage
 detectors on this task.
 
+**4. A separate bar for the log.** A detection below
+`INCIDENT_CONFIDENCE_THRESHOLD` (0.50) is drawn on the live stream and sent to
+the client, but is never advanced into a track — so it cannot open an incident
+however long it persists. The detector's own threshold stays lower (0.35) on
+purpose: marginal wear should be *visible* to someone watching the feed without
+also becoming a maintenance record. Both are tunable live from Settings, and
+the reasoning is recorded in
+[`docs/adr/0008`](docs/adr/0008-two-confidence-thresholds.md).
+
 Each confirmed incident writes a snapshot JPEG and a database row — evidence for
 a maintenance report, and the substrate for the predictive phase.
 
@@ -255,6 +265,44 @@ problems.
 `belt_v2` is `yolo11s` warm-started from `belt_v1.pt` rather than from COCO
 weights — the belt-damage features are already present, and adapting them
 converges far faster on a few hundred images than relearning would.
+
+---
+
+## The 3D Model tab
+
+A three.js model of the prototype rig — the belt loop, the four-leg laser
+gantry, the LDR receiver array between the belt runs, the drive unit — rendered
+in the browser at real-world scale. It exists to show *where* the sensors sit
+and *how* rip detection works mechanically, which a camera feed cannot show.
+
+It is **driven by live hardware**, not by an animation loop. An ESP32
+belt-monitor node posts accelerometer and LDR readings to a Supabase table
+roughly once a second; the browser subscribes over Supabase Realtime and the
+model reads off that feed:
+
+| On screen | Comes from |
+| --- | --- |
+| Belt runs, or sits still | Smoothed \|vibration\| crossing `MOTION_THRESHOLD` — an idle rig renders an idle belt |
+| Frame jitter amplitude | The same vibration reading, scaled and capped |
+| A rupture opening in the belt | Edge-triggered on a live `NORMAL → WARNING` transition |
+| Beacon pulse, red interlock banner | An active `WARNING`, or the node going silent |
+
+Nothing is invented: with the node unplugged the panel reads `OFFLINE` and the
+belt stops, rather than animating on regardless. The laser gantry sits parked,
+and the camera mast is decorative — the physical rig carries an accelerometer
+and an LDR array, not a camera.
+
+**This is a different sensor path from the rest of the dashboard.** The Live
+monitor tab runs frame-by-frame defect detection on camera footage; the 3D
+Model reports vibration and light from the ESP32. A rupture shown here reflects
+that node's own threshold logic, not a confirmed, camera-detected incident —
+the two are not interchangeable. See
+[`docs/adr/0007`](docs/adr/0007-3d-model-runs-on-synthetic-telemetry.md) for
+why this page was originally synthetic and what changed.
+
+Requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `frontend/.env`
+(see [Configuration](#configuration)). Without them the tab renders the model
+but stays `OFFLINE`.
 
 ---
 
@@ -372,13 +420,42 @@ All in `backend/.env` (see `.env.example`):
 | `IMG_SIZE` | `640` | Detector input size; capture resolution is independent |
 | `ENABLE_CLAHE` | `false` | Contrast enhancement — **off by default, see below** |
 | `CONFIRM_FRAMES` | `5` | Frames before a track becomes an incident |
+| `INCIDENT_CONFIDENCE_THRESHOLD` | `0.50` | Incident promotion bar — see below |
 | `MAX_STREAM_FPS` | `30` | MJPEG output cap; does not affect inference |
 | `LOOP_FILE_SOURCES` | `true` | Restart a video file when it ends |
 | `CORS_ORIGINS` | `localhost:5173` | Comma-separated allow-list |
 | `CORS_ORIGIN_REGEX` | *(empty)* | For Vercel's per-deployment preview domains |
 
-Confidence, IoU, CLAHE, confirmation frames and the stream cap are also tunable
-live from the dashboard's Settings page.
+Confidence, IoU, CLAHE, confirmation frames, the incident threshold and the
+stream cap are all tunable live from the dashboard's Settings page.
+
+### The frontend's own `.env`
+
+`frontend/.env` (see `frontend/.env.example`) is separate, and Vite only reads
+variables prefixed `VITE_`:
+
+| Key | Notes |
+| --- | --- |
+| `VITE_API_BASE` | Empty locally — Vite proxies `/api` and `/ws` to `:8000`. Set it when the frontend and API are on different origins |
+| `VITE_SUPABASE_URL` | Rig-telemetry Supabase project, for the [3D Model tab](#the-3d-model-tab) |
+| `VITE_SUPABASE_ANON_KEY` | The **anon / publishable** key. Never `SUPABASE_SERVICE_KEY` — that one bypasses row-level security and would be readable by anyone with devtools |
+
+The rig telemetry lives in a *different* Supabase project from the incident
+history, so `VITE_SUPABASE_URL` is not `SUPABASE_URL`. Neither `.env` is
+committed; both `.env.example` files list the names.
+
+### Two confidence bars, deliberately
+
+`CONF_THRESHOLD` (0.35) is what the detector reports. `INCIDENT_CONFIDENCE_THRESHOLD`
+(0.50) is what gets promoted into an incident. Between them sits a band where a
+box is drawn on the live stream but never opens an incident, never writes a
+snapshot and never reaches the alert rail.
+
+That band is the point. The detector is deliberately run below the paper's 0.50
+so early wear stays *visible* to an operator watching the feed, while the
+incident log — the thing that becomes a maintenance record — keeps a stricter
+bar. Raising the detector threshold instead would hide the marginal detections
+entirely rather than merely declining to alarm on them.
 
 **Why CLAHE is off.** It is applied to the frame given to the detector, but
 nothing in `training/` applies it — so enabling it trains the model on raw
@@ -453,7 +530,7 @@ Phase 1 is complete. The seams for what follows are already in place:
 | **Belt-position digital twin** — pin defects to a belt coordinate via frame count × belt speed, so the same tear is visibly the same tear each revolution | `FrameSource` already exposes a monotonic `frame_id` | ~1 day |
 | **Defect growth → RUL** — measure a tear across revolutions, fit a growth curve, predict days to critical | The `incidents` table is the training corpus | ~2 days |
 | **Maintenance work orders** — critical incident → PDF with snapshot, position, recommended action | Incident schema is already report-shaped | ~½ day |
-| **Simulated IoT sensor layer** — vibration/temp/load/speed over the same bus, with injectable fault scenarios | `bus.py` is topic-based pub/sub | ~1 day |
+| **IoT sensor layer onto the bus** — the ESP32 node already feeds the [3D Model tab](#the-3d-model-tab) directly from Supabase; republishing it onto `EventBus` would let vibration corroborate a visual detection | `bus.py` is topic-based pub/sub, and the node is already logging | ~1 day |
 | **Belt misalignment detection** — classical edge detection on belt edges; no training data needed | New pipeline stage beside the detector | ~1 day |
 | **Unsupervised anomaly fallback** — PatchCore on belt texture, for damage types with no class | Runs alongside the detector | ~2 days |
 | **SCADA / OPC-UA bridge** — expose incidents as OPC-UA nodes, emergency stop on CRITICAL | Another bus subscriber | ~2–3 days |

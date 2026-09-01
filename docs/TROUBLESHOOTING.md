@@ -162,6 +162,15 @@ incidents can be raised
 in `requirements.txt`. The dashboard also shows `TRACKING UNAVAILABLE` beside the
 detector name when this happens.
 
+If tracking *is* working, the other cause is the incident bar. A detection
+below `INCIDENT_CONFIDENCE_THRESHOLD` (default 0.50) is drawn and streamed but
+never advanced into a track, so it stays a box forever. This is deliberate —
+the detector runs at 0.35 so marginal wear is visible without becoming a
+maintenance record — but it means a run of low-confidence detections produces
+boxes and no incidents, with nothing logged to explain it. Check the confidence
+on the boxes you are seeing, and lower the threshold from **Settings** if the
+bar is genuinely too high for your footage.
+
 ---
 
 ## Inference is slow, or the stream lags
@@ -223,3 +232,62 @@ The browser console shows CORS errors, or the WebSocket never connects.
   [DEPLOYMENT.md](DEPLOYMENT.md).
 - In local development, leave `VITE_API_BASE` unset so paths stay relative and
   Vite's proxy handles them.
+
+---
+
+## The 3D Model tab says OFFLINE while the rig is running
+
+The tab renders the model fine, but the telemetry panel reads `OFFLINE`, the
+red interlock banner is stuck on, and the belt never moves.
+
+**This failure is silent by design, which makes it confusing.** The feed hook
+swallows its query error (`if (!error && data)`), so a rejected request looks
+exactly like a rig that is powered off: no row ever arrives, `lastUpdatedAt`
+stays null, and the offline ticker holds `connected: false`. Nothing is logged.
+
+Work through it in this order.
+
+**1. Is the key valid?** Ask the REST API directly, substituting your own
+project URL and anon key:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" \
+  "https://<ref>.supabase.co/rest/v1/readings?select=*&limit=1" \
+  -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
+```
+
+`200` means the credentials are good. `401` (`{"message":"Invalid API key"}`)
+means they are not — and this is the most common cause, because the key is a
+long opaque string where `1` and `l` are easy to confuse when retyped by hand.
+Copy it, never transcribe it.
+
+**2. Is it the right `.env`?** Vite reads **`frontend/.env`**, not
+`backend/.env`. Updating the key in the backend file changes nothing for the
+browser; the two must be kept in step by hand. Vite also only exposes variables
+prefixed `VITE_`, and **only reads `.env` at startup** — restart the dev server
+after editing it.
+
+**3. Is the node actually posting?** Poll the newest row and watch whether the
+id advances:
+
+```bash
+curl -s "https://<ref>.supabase.co/rest/v1/readings?select=id,created_at\
+&device=eq.belt-monitor-1&order=created_at.desc&limit=1" \
+  -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
+```
+
+A climbing `id` means the rig is alive and the fault is in the browser. A
+frozen one means the node has stopped or lost Wi-Fi.
+
+**4. Does the device id match?** The hook filters on `device=eq.belt-monitor-1`
+(`DEVICE_ID` in `frontend/src/lib/rig/useLiveBeltFeed.ts`). Rows written under
+any other device name are invisible to it, and the query succeeds with zero
+rows — indistinguishable from an offline rig.
+
+### It flickers OFFLINE and back
+
+Different problem. `OFFLINE_AFTER_MS` is 5 s, but the node's posting is bursty
+— gaps of 15 s or more have been measured on a healthy rig. Every gap longer
+than the threshold trips the banner. Raise `OFFLINE_AFTER_MS` in
+`useLiveBeltFeed.ts` to comfortably exceed the worst gap you actually observe
+in step 3.
