@@ -174,6 +174,8 @@ DESIGN.md    The dashboard's design system — source of the tokens in frontend/
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Vercel + Render, and the CORS loop |
 | [`docs/model_report.md`](docs/model_report.md) | Measured metrics for the shipped weights |
 | [`DESIGN.md`](DESIGN.md) | Colour, type and spacing tokens for the dashboard |
+| [`CONTEXT.md`](CONTEXT.md) | The project's vocabulary — what a defect, an incident and a joint rupture each mean |
+| [`docs/adr/`](docs/adr/) | Why the load-bearing decisions were made the way they were |
 
 ---
 

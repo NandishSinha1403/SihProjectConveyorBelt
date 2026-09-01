@@ -40,9 +40,9 @@ BASE_SEVERITY: dict[str, Severity] = {
 # Classes that are drawn on the feed but never open an incident.
 #
 # A belt joint is a normal feature of the belt, not damage, and it comes past
-# once per revolution -- every few seconds. Opening an incident on sight produced
-# hundreds of identical INFO rows (measured: 1,800+ over one session, one per
-# ~60s) which buried the tears and holes an operator actually needs. Detecting it
+# once per revolution -- every few seconds. Opening an incident on sight recorded
+# 80 identical INFO rows at roughly one a minute, interleaved with the tears and
+# holes an operator actually needs. Detecting it
 # still has value -- it is a landmark, and one joint per revolution is the basis
 # of the deferred belt-position digital twin -- so it is tracked and rendered,
 # just never alarmed on.
