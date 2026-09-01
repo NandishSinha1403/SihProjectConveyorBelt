@@ -2,8 +2,14 @@ import * as THREE from 'three';
 import type { Stage } from './stage';
 
 /**
- * Conveyor belt health-monitoring rig — model + telemetry-bound animation.
+ * Conveyor belt health-monitoring rig — model + live-sensor-bound animation.
  * Real-world metres, y-up, belt centred on the origin.
+ *
+ * This rig has no simulated physics of its own: belt motion, jitter, and alarm/rupture visuals
+ * are all driven by `setLive()`, fed from the physical ESP32 belt-monitor node's readings over
+ * Supabase (see lib/rig/useLiveBeltFeed.ts). In particular, the belt only animates while the live
+ * `vibration` reading says the rig is actually moving (see MOTION_THRESHOLD) — it sits still
+ * otherwise, rather than animating on regardless of real state.
  */
 
 const W = 1.0; // belt width
@@ -13,36 +19,34 @@ const YC = 0.85; // pulley centre height
 const RUN = HX * 2; // straight run length
 const LOOP = 2 * RUN + 2 * Math.PI * R;
 const BT = 0.018; // belt thickness
-const CAM_X = 1.75; // vision camera station
+const CAM_X = 1.75; // vision camera station (decorative — no live vision sensor)
 const CLEATS = 26;
-const ROCK_POOL = 22;
 const HOLE_POOL = 3;
 
-export type Command =
-  | { k: 'start' }
-  | { k: 'stop' }
-  | { k: 'estop' }
-  | { k: 'reset' }
-  | { k: 'speed'; v: number }
-  | { k: 'load'; v: number }
-  | { k: 'mount_x'; v: number }
-  | { k: 'ore'; v: boolean }
-  | { k: 'clear_ore' };
+/** Fixed X position of the laser-gantry carriage — no live sensor commands it, so it's parked. */
+const MOUNT_X_FIXED = -0.35;
+/** Belt speed (m/s) while the live accelerometer says the rig is actually running. */
+const LIVE_BELT_SPEED = 1.6;
+/**
+ * Smoothed |vibration| above this (m/s²) is read as "the belt is physically moving"; below it,
+ * the visual belt sits still. No firmware change needed — this is purely a client-side read of
+ * the `vibration` field already being logged. Idle/ambient noise on the rig sits ~0.03–0.09;
+ * real activity (a tap, or the motor actually running) reads noticeably higher. Retune here if
+ * the real motor's running vibration turns out lower/higher than that.
+ */
+const MOTION_THRESHOLD = 0.12;
+/** Seconds; belt speed ramps toward its start/stop target instead of snapping. */
+const SPEED_SMOOTH_TAU = 0.35;
+/** Vibration-jitter tuning — gain/cap in metres of shake per unit |vibration|. */
+const JITTER_GAIN = 0.02;
+const JITTER_MAX = 0.01;
+/** Seconds; jitter amplitude ramps toward its target instead of snapping. */
+const VIBRATION_SMOOTH_TAU = 0.25;
 
-export type Fault = 'oversize' | 'rip' | 'trip';
-
-export type Telemetry = {
-  speed: number;
-  loadTph: number;
-  beltPos: number;
-  ldr: string;
-  ldrAlarm: boolean;
-  mountX: number;
-  vision: string;
-  visionAlarm: boolean;
-  interlock: string;
-  tripped: boolean;
-  tripReason: string | null;
+/** A live sensor reading from the physical rig, pushed in via `ConveyorRig.setLive()`. */
+export type LiveReading = {
+  status: 'NORMAL' | 'WARNING' | null;
+  vibration: number | null;
 };
 
 /** [text, x, y, z, px dx, px dy] — dx/dy separate labels whose anchors project close together. */
@@ -56,21 +60,16 @@ export const LABEL_ANCHORS: Array<[string, number, number, number, number, numbe
 ];
 
 export type ConveyorRig = {
-  cmd(c: Command): void;
-  inject(fault: Fault): void;
+  setLive(reading: LiveReading): void;
   dispose(): void;
 };
 
-export function createConveyorRig(
-  stage: Stage,
-  onTelemetry: (t: Telemetry) => void,
-): ConveyorRig {
+export function createConveyorRig(stage: Stage, onFrame?: () => void): ConveyorRig {
   const M = {
     steel: new THREE.MeshStandardMaterial({ name: 'steel_frame', color: 0x5980a6, roughness: 0.5, metalness: 0.35 }),
     graphite: new THREE.MeshStandardMaterial({ name: 'belt_rubber', color: 0x23272b, roughness: 0.85, metalness: 0.05 }),
     zinc: new THREE.MeshStandardMaterial({ name: 'roller_zinc', color: 0xb7bec6, roughness: 0.4, metalness: 0.38 }),
     panel: new THREE.MeshStandardMaterial({ name: 'guard_panel', color: 0xdcdee2, roughness: 0.7, metalness: 0.08 }),
-    ore: new THREE.MeshStandardMaterial({ name: 'iron_ore', color: 0x6d6055, roughness: 0.95, metalness: 0.0 }),
     amber: new THREE.MeshStandardMaterial({ name: 'signal_amber', color: 0xd08a10, roughness: 0.5, metalness: 0.1 }),
     laser: new THREE.MeshStandardMaterial({ name: 'laser_beam', color: 0xd6402c, roughness: 0.9, emissive: 0x501008 }),
   };
@@ -265,6 +264,8 @@ export function createConveyorRig(
   const sensors = new THREE.Group();
   sensors.name = 'sensors';
 
+  // Vision camera — decorative only. There is no camera on the physical ESP32 rig, so this
+  // mast/lens/FOV cone never reacts to live data; it just sits at its idle look.
   const camMast = new THREE.Group();
   camMast.name = 'vision_camera';
   camMast.add(box('camera_mast', 0.06, 1.15, 0.06, M.steel, CAM_X, YC + 0.57, W / 2 + 0.34));
@@ -308,7 +309,8 @@ export function createConveyorRig(
   sensors.add(beacon);
   root.add(sensors);
 
-  /* ---------- rip-detection gantry: 3 lasers on an X mount ---------- */
+  /* ---------- rip-detection gantry: 3 lasers on an X mount ----------
+     The carriage has no live sensor to command it, so it's parked at MOUNT_X_FIXED for good. */
   const GZ = W / 2 + 0.26;
   const RAIL_Y = 2.1;
   const gantry = new THREE.Group();
@@ -322,9 +324,10 @@ export function createConveyorRig(
     gantry.add(box(`gantry_x_rail_${sz > 0 ? 'a' : 'b'}`, 3.45, 0.05, 0.07, M.steel, 0, RAIL_Y, sz * GZ));
     gantry.add(box(`gantry_x_scale_${sz > 0 ? 'a' : 'b'}`, 3.45, 0.02, 0.012, M.panel, 0, RAIL_Y + 0.04, sz * GZ));
   }
-  // carriage — slides along X on the rails, carries the Y post
+  // carriage — parked on the rails, carries the Y post
   const bridge = new THREE.Group();
   bridge.name = 'gantry_x_carriage';
+  bridge.position.x = MOUNT_X_FIXED;
   bridge.add(box('carriage_cross_beam', 0.11, 0.07, W + 0.66, M.steel, 0, RAIL_Y - 0.06, 0));
   for (const sz of [1, -1]) {
     bridge.add(box(`carriage_shoe_${sz > 0 ? 'a' : 'b'}`, 0.17, 0.1, 0.12, M.panel, 0, RAIL_Y, sz * GZ));
@@ -336,6 +339,8 @@ export function createConveyorRig(
   head.name = 'sensor_head_ldr_array';
   head.add(box('head_slide_block', 0.1, 0.13, 0.09, M.panel, 0, 0.06, 0));
   head.add(box('head_body', 0.2, 0.09, 0.44, M.steel, 0, 0, 0));
+  const BELT_TOP = YC + R + BT;
+  head.position.y = BELT_TOP + 0.5;
   const lasers: Array<{
     mesh: THREE.Mesh;
     mat: THREE.MeshStandardMaterial;
@@ -377,7 +382,8 @@ export function createConveyorRig(
 
   /* ---------- belt holes / rips ----------
      A punched void with a frayed bright rim so it reads clearly against the
-     dark carcass from any orbit angle. */
+     dark carcass from any orbit angle. Activated by triggerRupture() on a live NORMAL→WARNING
+     edge — this is the rig's stand-in for "a rupture just tripped the light sensor." */
   const holes: Array<{ group: THREE.Group; s: number; z: number; active: boolean }> = [];
   const voidMat = new THREE.MeshStandardMaterial({ name: 'belt_rip_void', color: 0x08090b, roughness: 1, side: THREE.DoubleSide });
   const rimMat = new THREE.MeshStandardMaterial({ name: 'belt_rip_rim', color: 0xd9d2c4, roughness: 0.8, emissive: 0x2a2213 });
@@ -403,139 +409,42 @@ export function createConveyorRig(
     holes.push({ group: g, s: 0, z: 0, active: false });
   }
 
-  /* ---------- ore load ---------- */
-  type Rock = {
-    mesh: THREE.Mesh;
-    active: boolean;
-    size: number;
-    x: number;
-    z: number;
-    spin: number;
-    oversize: boolean;
-  };
-  const rocks: Rock[] = [];
-  const oreGroup = new THREE.Group();
-  oreGroup.name = 'ore_load';
-  oreGroup.position.y = YC;
-  for (let i = 0; i < ROCK_POOL; i++) {
-    const g = new THREE.IcosahedronGeometry(1, 0);
-    const p = g.attributes.position;
-    for (let v = 0; v < p.count; v++) {
-      p.setXYZ(
-        v,
-        p.getX(v) * (0.75 + Math.random() * 0.5),
-        p.getY(v) * (0.7 + Math.random() * 0.5),
-        p.getZ(v) * (0.75 + Math.random() * 0.5),
-      );
-    }
-    g.computeVertexNormals();
-    const m = new THREE.Mesh(g, M.ore);
-    m.name = `ore_lump_${i}`;
-    m.visible = false;
-    oreGroup.add(m);
-    rocks.push({ mesh: m, active: false, size: 0.1, x: 0, z: 0, spin: 0, oversize: false });
-  }
-  root.add(oreGroup);
-
   stage.setObject(root);
   // closer default framing than the auto-fit (the rig is long and low)
   stage.camera.position.set(1.3, 2.9, 8.4);
   stage.controls.target.set(-0.25, 0.8, 0);
   stage.controls.update();
 
-  /* ================= telemetry-bound animation ================= */
+  /* ================= live-sensor-bound animation ================= */
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const state = {
-    running: true,
-    setpoint: 1.8,
-    speed: 1.8,
-    load: 0.55,
     beltS: 0,
+    speed: 0, // ramped belt speed — 0 when the live data says the rig is idle
     tripped: false,
-    tripReason: null as string | null,
-    detect: null as string | null,
-    detectUntil: 0,
-    mountX: -0.35, // gantry carriage X (m); height is fixed by the frame
-    oreOn: true,
+    vibration: 0, // smoothed |vibration| — drives both jitter amplitude and the moving/idle read
+    targetVibration: 0, // latest |live vibration| from Supabase
     ldr: 0,
     ripAt: null as number | null,
     ripUntil: 0,
     ldrLane: -1,
   };
+  let prevStatus: LiveReading['status'] = null;
 
-  let spawnAcc = 0;
-  function clearOre() {
-    spawnAcc = 0;
-    for (const r of rocks) {
-      r.active = false;
-      r.mesh.visible = false;
-    }
+  function triggerRupture() {
+    const h = holes.find((x) => !x.active) ?? holes[0];
+    h.active = true;
+    h.s = 0.35 - state.beltS; // enters the top run just past the tail pulley
+    h.z = (Math.random() - 0.5) * 0.34;
+    h.group.visible = true;
   }
 
-  function cmd(c: Command) {
-    switch (c.k) {
-      case 'start':
-        if (!state.tripped) state.running = true;
-        break;
-      case 'stop':
-        state.running = false;
-        break;
-      case 'estop':
-        state.running = false;
-        state.tripped = true;
-        state.tripReason = 'E-STOP — operator';
-        break;
-      case 'reset':
-        state.tripped = false;
-        state.tripReason = null;
-        break;
-      case 'speed':
-        state.setpoint = c.v;
-        break;
-      case 'load':
-        state.load = c.v;
-        break;
-      case 'mount_x':
-        state.mountX = c.v;
-        break;
-      case 'ore':
-        state.oreOn = c.v;
-        if (!c.v) clearOre();
-        break;
-      case 'clear_ore':
-        clearOre();
-        break;
+  function setLive(r: LiveReading) {
+    state.tripped = r.status === 'WARNING';
+    state.targetVibration = r.vibration != null ? Math.abs(r.vibration) : 0;
+    if (r.status === 'WARNING' && prevStatus !== 'WARNING') {
+      triggerRupture(); // edge-triggered, mirrors the firmware's own `events` log
     }
-  }
-
-  function inject(kind: Fault) {
-    if (kind === 'oversize') spawnRock(true);
-    if (kind === 'rip') {
-      const h = holes.find((x) => !x.active) ?? holes[0];
-      h.active = true;
-      h.s = 0.35 - state.beltS; // enters the top run just past the tail pulley
-      h.z = (Math.random() - 0.5) * 0.34;
-      h.group.visible = true;
-    }
-    if (kind === 'trip') {
-      state.tripped = true;
-      state.running = false;
-      state.tripReason = 'OVERSIZE ROCK — vision + LDR (2/3)';
-    }
-  }
-
-  function spawnRock(oversize: boolean) {
-    const r = rocks.find((x) => !x.active);
-    if (!r) return;
-    r.active = true;
-    r.oversize = oversize;
-    r.size = oversize ? 0.3 : 0.055 + Math.random() * 0.075;
-    r.x = -2.3 + Math.random() * 0.12;
-    r.z = (Math.random() - 0.5) * (W - 0.3 - r.size);
-    r.spin = Math.random() * 6;
-    r.mesh.scale.setScalar(r.size);
-    r.mesh.material = oversize ? M.amber : M.ore;
-    r.mesh.visible = true;
+    prevStatus = r.status;
   }
 
   let last = performance.now();
@@ -543,9 +452,17 @@ export function createConveyorRig(
     const now = performance.now();
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
-    const target = state.running && !state.tripped ? state.setpoint : 0;
-    state.speed += (target - state.speed) * (1 - Math.exp(-dt / (target === 0 ? 0.26 : 0.4)));
-    if (state.speed < 0.004) state.speed = target === 0 ? 0 : state.speed;
+
+    // Smoothed |vibration| first — both the belt's start/stop decision and the jitter amplitude
+    // read off this, so it belongs ahead of everything it drives.
+    state.vibration +=
+      (state.targetVibration - state.vibration) * (1 - Math.exp(-dt / VIBRATION_SMOOTH_TAU));
+
+    // The belt only runs when live data says the rig is actually moving (see MOTION_THRESHOLD);
+    // otherwise it ramps down to a stop instead of animating on regardless of real state.
+    const speedTarget = state.vibration > MOTION_THRESHOLD ? LIVE_BELT_SPEED : 0;
+    state.speed += (speedTarget - state.speed) * (1 - Math.exp(-dt / SPEED_SMOOTH_TAU));
+    if (state.speed < 0.004 && speedTarget === 0) state.speed = 0;
     state.beltS += state.speed * dt;
 
     // belt surface + rollers
@@ -557,41 +474,23 @@ export function createConveyorRig(
     }
     for (const s of spinners) s.mesh.rotation.z = -state.beltS / s.radius;
 
-    // ore flow
-    if (state.speed > 0.05 && state.oreOn) {
-      spawnAcc += dt * (0.4 + state.load * 5.2) * Math.min(state.speed / 1.8, 1.4);
-      while (spawnAcc >= 1) {
-        spawnAcc -= 1;
-        spawnRock(false);
-      }
-    }
-    for (const r of rocks) {
-      if (!r.active) continue;
-      r.x += state.speed * dt;
-      r.mesh.position.set(r.x, R + r.size * 0.62, r.z);
-      r.mesh.rotation.set(r.spin, r.spin * 0.7, (-state.beltS / r.size) * 0.35);
-      if (r.oversize && r.x > 1.1 && r.x < 2.3) {
-        state.detect = 'OVERSIZE';
-        state.detectUntil = now + 400;
-      }
-      if (r.x > HX + 0.12) {
-        r.active = false;
-        r.mesh.visible = false;
-      }
+    // vibration jitter — ramps toward the live reading, never snaps
+    if (!reduce) {
+      const amp = Math.min(state.vibration * JITTER_GAIN, JITTER_MAX);
+      const t = now / 1000;
+      root.position.set(
+        Math.sin(t * 37) * amp,
+        Math.sin(t * 61) * amp * 0.5,
+        Math.cos(t * 47) * amp * 0.4,
+      );
+    } else {
+      root.position.set(0, 0, 0);
     }
 
-    // rip gantry: carriage tracks the X setpoint; head sits at a fixed frame height
-    const BELT_TOP = YC + R + BT;
-    bridge.position.x += (state.mountX - bridge.position.x) * Math.min(1, dt / 0.12);
-    head.position.y = BELT_TOP + 0.5;
-    const gap = Math.max(0.02, head.position.y - BELT_TOP - 0.085);
-
-    // Belt holes ride the loop; light reaches an LDR cell only through a hole in
-    // the carcass. The same hole is also confirmed by the vision camera when it
-    // passes the camera's field.
+    // Belt holes ride the loop; light reaches an LDR cell only through a hole in the carcass.
     let seen: number | null = null;
     let hitLane = -1;
-    let camHole: number | null = null;
+    const gap = Math.max(0.02, head.position.y - BELT_TOP - 0.085);
     for (const h of holes) {
       if (!h.active) continue;
       const q = loopPoint(state.beltS + h.s);
@@ -604,12 +503,7 @@ export function createConveyorRig(
             hitLane = li;
           }
         });
-        if (q.x > CAM_X - 0.55 && q.x < CAM_X + 0.55) camHole = q.x;
       }
-    }
-    if (camHole !== null) {
-      state.detect = 'HOLE';
-      state.detectUntil = now + 900;
     }
     // a beam that found a hole carries on down to the receiver below the belt
     lasers.forEach((l, li) => {
@@ -634,15 +528,7 @@ export function createConveyorRig(
       lane.mesh.material = lk > 0.05 && state.ldrLane === i ? M.laser : M.graphite;
     });
 
-    if (state.detect === 'HOLE' && now < state.detectUntil) {
-      coneMat.color.setRGB(0.84, 0.25, 0.17);
-      coneMat.opacity = 0.95;
-    } else {
-      coneMat.color.setHex(0x5980a6);
-      coneMat.opacity = 0.55;
-    }
-
-    // beacon
+    // beacon — pulses while a live WARNING is active
     const alarm = state.tripped && !reduce ? 0.5 + 0.5 * Math.sin(now / 130) : 0;
     domeMat.color.setRGB(
       0.82 * (0.55 + alarm * 0.45),
@@ -651,28 +537,13 @@ export function createConveyorRig(
     );
     domeMat.emissive.setRGB(state.tripped ? 0.45 * alarm : 0, 0, 0);
 
-    const detect = now < state.detectUntil ? state.detect : null;
-    const rip = now < state.ripUntil ? state.ripAt : null;
-    onTelemetry({
-      speed: state.speed,
-      loadTph: Math.round(state.load * 1400 * Math.min(state.speed / 1.8, 1.2)),
-      beltPos: state.beltS % LOOP,
-      ldr: rip != null ? 'HOLE @ ' + rip.toFixed(2) + ' m' : 'CLEAR',
-      ldrAlarm: rip != null,
-      mountX: state.mountX,
-      vision: detect ?? 'CLEAR',
-      visionAlarm: detect != null,
-      interlock: state.tripped ? 'TRIPPED' : state.running ? 'ARMED · RUN' : 'ARMED · IDLE',
-      tripped: state.tripped,
-      tripReason: state.tripReason,
-    });
+    onFrame?.();
   }
 
   stage.onFrame(tick);
 
   return {
-    cmd,
-    inject,
+    setLive,
     dispose() {
       stage.onFrame(null);
       root.traverse((o) => {

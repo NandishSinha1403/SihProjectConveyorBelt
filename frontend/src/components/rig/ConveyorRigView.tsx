@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Moon, Sun, ArrowLeft } from 'lucide-react';
 import { Link } from '@/components/Router';
 import { useTheme } from '@/hooks/useTheme';
-import type { Command, ConveyorRig, Fault, Telemetry } from '@/lib/rig/conveyor-model';
+import type { ConveyorRig } from '@/lib/rig/conveyor-model';
 import type { Stage } from '@/lib/rig/stage';
+import { useLiveBeltFeed } from '@/lib/rig/useLiveBeltFeed';
 import AlarmBanner from './AlarmBanner';
-import ControlPanel from './ControlPanel';
 import TelemetryPanel from './TelemetryPanel';
 import TitlePanel from './TitlePanel';
 import './rig.css';
@@ -15,22 +15,6 @@ const STAGE_BACKGROUND: Record<'light' | 'dark', string> = {
   dark: '#1b1c1d',
 };
 const EXPORT_BASENAME = 'conveyor_health_rig';
-/** Readouts refresh at 12 Hz — fast enough to read as live, far cheaper than a render per frame. */
-const READOUT_INTERVAL_MS = 80;
-
-const INITIAL_TELEMETRY: Telemetry = {
-  speed: 0,
-  loadTph: 0,
-  beltPos: 0,
-  ldr: 'CLEAR',
-  ldrAlarm: false,
-  mountX: -0.35,
-  vision: 'CLEAR',
-  visionAlarm: false,
-  interlock: 'ARMED',
-  tripped: false,
-  tripReason: null,
-};
 
 export default function ConveyorRigView() {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -42,7 +26,6 @@ export default function ConveyorRigView() {
   const [anchors, setAnchors] = useState<
     Array<[string, number, number, number, number, number]>
   >([]);
-  const [telemetry, setTelemetry] = useState<Telemetry>(INITIAL_TELEMETRY);
   const [labelsVisible, setLabelsVisible] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -50,6 +33,8 @@ export default function ConveyorRigView() {
   // Defaults to light: that is the rig's native design, made in a tool that
   // only ever showed it on white.
   const { theme, toggle: toggleTheme } = useTheme('rig-theme', 'light');
+
+  const feed = useLiveBeltFeed();
 
   useEffect(() => {
     labelsVisibleRef.current = labelsVisible;
@@ -74,13 +59,8 @@ export default function ConveyorRigView() {
       stageRef.current = stage;
       setAnchors(model.LABEL_ANCHORS);
 
-      let lastPush = 0;
-      rig = model.createConveyorRig(stage, (t) => {
+      rig = model.createConveyorRig(stage, () => {
         projectLabels(stage!, labelRefs.current, model.LABEL_ANCHORS, labelsVisibleRef.current);
-        const now = performance.now();
-        if (now - lastPush < READOUT_INTERVAL_MS) return;
-        lastPush = now;
-        setTelemetry(t);
       });
       rigRef.current = rig;
       setReady(true);
@@ -106,8 +86,16 @@ export default function ConveyorRigView() {
     };
   }, []);
 
-  const onCommand = useCallback((c: Command) => rigRef.current?.cmd(c), []);
-  const onInject = useCallback((f: Fault) => rigRef.current?.inject(f), []);
+  useEffect(() => {
+    rigRef.current?.setLive({ status: feed.status, vibration: feed.vibration });
+  }, [feed.status, feed.vibration]);
+
+  const bannerOn = !feed.connected || feed.status === 'WARNING';
+  const bannerReason = !feed.connected
+    ? `Sensor offline — no data from ${feed.deviceId}`
+    : feed.status === 'WARNING'
+      ? 'LIVE: Belt rupture detected — LDR + vibration'
+      : null;
 
   return (
     <div id="wrap" className="rig-page" data-theme={theme}>
@@ -154,15 +142,9 @@ export default function ConveyorRigView() {
         ))}
       </div>
 
-      <TitlePanel />
-      <TelemetryPanel t={telemetry} />
-      <ControlPanel
-        onCommand={onCommand}
-        onInject={onInject}
-        labelsVisible={labelsVisible}
-        onLabelsVisibleChange={setLabelsVisible}
-      />
-      <AlarmBanner on={telemetry.tripped} reason={telemetry.tripReason} />
+      <TitlePanel labelsVisible={labelsVisible} onLabelsVisibleChange={setLabelsVisible} />
+      <TelemetryPanel feed={feed} />
+      <AlarmBanner on={bannerOn} reason={bannerReason} />
     </div>
   );
 }
@@ -178,7 +160,7 @@ function projectLabels(
   visible: boolean,
 ) {
   const { w, h } = stage.viewportSize;
-  const panels = ['title', 'readouts', 'controls']
+  const panels = ['title', 'readouts']
     .map((id) => document.getElementById(id)?.getBoundingClientRect())
     .filter((r): r is DOMRect => !!r);
 

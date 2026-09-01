@@ -100,11 +100,15 @@ _Avoid_: run, stream, connection
 
 **3D Model**:
 A browser-rendered three-dimensional model of the rig's sensor layout, driven
-by a synthetic telemetry loop with no connection to the live pipeline, a
-session, or any incident. Exists to show sensor placement and mechanism, not
-to monitor anything — nothing it displays is a detection, a track, or an
-incident, and confirming a fault here confirms nothing about the belt.
-_Avoid_: digital twin, simulation, live view
+live by a physical ESP32 belt-monitor node's vibration and LDR readings over
+a dedicated Supabase project — separate from the belt pipeline's session,
+detection, track and incident model described above. Shows sensor placement
+and mechanism (lasers, LDR array, accelerometer) with real motion and
+rupture visuals bound to that node's own readings, not to the camera-based
+detector. A rupture shown here reflects the ESP32's status/LDR logic, not a
+confirmed, camera-detected incident — it is not interchangeable with what the
+`Live monitor` tab reports.
+_Avoid_: digital twin, camera feed, incident, detection
 
 ## Training and data
 
