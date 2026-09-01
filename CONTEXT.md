@@ -96,11 +96,22 @@ One continuous run of the pipeline over one source, from start to stop. Incident
 numbering restarts with each session; database identity does not.
 _Avoid_: run, stream, connection
 
+## Demonstration
+
+**3D Model**:
+A browser-rendered three-dimensional model of the rig's sensor layout, driven
+by a synthetic telemetry loop with no connection to the live pipeline, a
+session, or any incident. Exists to show sensor placement and mechanism, not
+to monitor anything — nothing it displays is a detection, a track, or an
+incident, and confirming a fault here confirms nothing about the belt.
+_Avoid_: digital twin, simulation, live view
+
 ## Training and data
 
 **Rig**:
 The physical prototype conveyor this project demonstrates on, as distinguished
 from the industrial belts in public datasets. The two look almost nothing alike.
+See 3D Model for the rendered, simulated stand-in for this same rig.
 _Avoid_: prototype, test bench, model belt
 
 **Negative**:
