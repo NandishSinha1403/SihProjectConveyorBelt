@@ -16,14 +16,10 @@ import {
 const PAGE_SIZE = 50;
 
 const SEVERITIES: Severity[] = ["critical", "high", "medium", "low", "info"];
-const CLASSES = [
-  "joint_damage",
-  "tear",
-  "hole",
-  "crack",
-  "scratch",
-  "belt_joint",
-];
+// belt_joint is absent deliberately: a healthy joint is a landmark, not an
+// event, so it never produces a row here. See NON_INCIDENT_CLASSES in
+// backend/app/pipeline/events.py.
+const CLASSES = ["joint_damage", "tear", "hole", "crack", "scratch"];
 
 export function Incidents({ refreshKey }: { refreshKey: number }) {
   const [items, setItems] = useState<Incident[]>([]);

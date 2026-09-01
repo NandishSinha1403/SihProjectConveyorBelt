@@ -23,7 +23,10 @@ CLASS_LABELS: dict[str, str] = {
     "scratch": "Scratch",
     "crack": "Crack",
     "belt_joint": "Belt Joint",
-    "joint_damage": "Joint Damage",
+    # A healthy splice passing the camera is not an event -- it does that once
+    # per belt revolution. A splice that has *separated* is the failure this
+    # project exists to catch, so it carries the problem statement's own name.
+    "joint_damage": "Belt Joint Rupture",
 }
 
 

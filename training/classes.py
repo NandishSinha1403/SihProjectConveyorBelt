@@ -71,6 +71,16 @@ ALIASES: dict[str, str] = {
     "joint failure": "joint_damage",
     "splice failure": "joint_damage",
     "damaged splice": "joint_damage",
+    # The rig dataset labels this by what it looks like -- a splice that has
+    # separated at the belt edge into an open wedge. These are the names most
+    # likely to be typed into Roboflow for it.
+    "joint rupture": "joint_damage",
+    "belt joint rupture": "joint_damage",
+    "rupture": "joint_damage",
+    "ruptured joint": "joint_damage",
+    "separated joint": "joint_damage",
+    "open joint": "joint_damage",
+    "split joint": "joint_damage",
 }
 
 

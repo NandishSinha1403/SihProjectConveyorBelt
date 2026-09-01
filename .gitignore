@@ -15,7 +15,13 @@ backend/models/*.pt
 backend/data/*.db
 backend/data/*.db-wal
 backend/data/*.db-shm
-training/data/
+# Note the trailing /*: git cannot re-include anything under a directory that
+# is itself excluded, so this must exclude the children rather than the folder.
+training/data/*
+# The labelled rig dataset is the exception: it is hand-made, not downloadable,
+# and kaggle_rig.ipynb reads it straight from the clone rather than fetching it
+# from a hosted service. ~34 MB.
+!training/data/rig_dataset/
 training/runs/
 .DS_Store
 .run/

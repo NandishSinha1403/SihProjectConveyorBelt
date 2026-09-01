@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.pipeline.capture import CaptureThread, LatestFrame  # noqa: E402
 from app.pipeline.detector import Detector, MockDetector  # noqa: E402
-from app.pipeline.events import IncidentEngine, assess_joints, score_severity  # noqa: E402
+from app.pipeline.events import IncidentEngine, score_severity  # noqa: E402
 from app.pipeline.types import Detection, Severity  # noqa: E402
 from app.sources.base import FrameSource, SourceInfo  # noqa: E402
 
@@ -200,44 +200,66 @@ def test_healthy_joint_stays_informational():
     assert score_severity(joint, 1280, 720) is Severity.INFO
 
 
-# A splice band: full belt width, thin laterally. This is the shape that made
-# the first two versions of the rule wrong.
+# A splice band: full belt width, thin laterally.
 def _splice():
     return Detection("belt_joint", 0.95, 0, 300, 1280, 360, track_id=1)
 
 
-@pytest.mark.parametrize("name,defect", [
-    # The four geometries that constitute belt joint rupture. The middle two
-    # are the dangerous ones and were both missed by the containment rule:
-    # a tear running out of a splice is mostly *outside* it.
-    ("crack inside the splice", Detection("crack", 0.8, 500, 310, 560, 350, track_id=2)),
-    ("tear propagating out of it", Detection("tear", 0.8, 600, 320, 640, 700, track_id=3)),
-    ("rip running through it", Detection("tear", 0.8, 600, 40, 640, 690, track_id=4)),
-    ("hole at the splice edge", Detection("hole", 0.8, 700, 340, 760, 400, track_id=5)),
-])
-def test_damage_meeting_a_splice_escalates_to_joint_damage(name, defect):
-    """The headline failure mode of the problem statement."""
-    joint = _splice()
-    assess_joints([joint, defect])
-    assert joint.cls == "joint_damage", f"{name} did not escalate"
-    assert score_severity(joint, 1280, 720) is Severity.CRITICAL
+def test_a_healthy_joint_never_opens_an_incident():
+    """A belt is a loop, so the splice passes the camera every revolution.
+
+    Alarming on it produced 1,800+ identical INFO rows in one session, which
+    buried the tears and holes an operator actually needs to see. The joint is
+    still detected and still rendered -- it just is not an event.
+    """
+    opened = []
+    engine = IncidentEngine(confirm_frames=3, on_open=lambda i, d: opened.append(i))
+
+    # Far longer than confirmation requires, and far longer than a real pass.
+    for frame in range(200):
+        engine.process([_splice()], frame, 1280, 720)
+
+    assert opened == []
+    assert engine.open_incidents == []
 
 
-@pytest.mark.parametrize("name,other", [
-    ("healthy splice, nothing near it", None),
-    ("tear well below the splice",
-     Detection("tear", 0.8, 600, 500, 640, 700, track_id=6)),
-    ("one-pixel graze along the band edge",
-     Detection("tear", 0.8, 600, 359, 601, 700, track_id=7)),
-    ("scratch elsewhere on the belt",
-     Detection("scratch", 0.6, 400, 500, 460, 560, track_id=8)),
-])
-def test_healthy_splice_is_not_escalated(name, other):
-    """A splice is an expected feature of the belt. It must not alarm anyone."""
-    joint = _splice()
-    assess_joints([joint] + ([other] if other else []))
-    assert joint.cls == "belt_joint", f"{name} wrongly escalated"
-    assert score_severity(joint, 1280, 720) is Severity.INFO
+def test_a_joint_still_renders_and_carries_a_severity():
+    """Suppressing the incident must not suppress the detection itself."""
+    returned = IncidentEngine().process([_splice()], 1, 1280, 720)
+    assert [d.cls for d in returned] == ["belt_joint"]
+    assert returned[0].severity is Severity.INFO
+
+
+def test_joint_rupture_opens_a_critical_incident():
+    """A separated splice is a defect like any other, and the worst one.
+
+    This is now a trained class rather than a geometric inference from a tear
+    overlapping a healthy joint, so it needs no special casing -- it confirms
+    and escalates through exactly the same path as a tear.
+    """
+    opened = []
+    engine = IncidentEngine(confirm_frames=3, on_open=lambda i, d: opened.append(i))
+
+    for frame in range(6):
+        engine.process(
+            [Detection("joint_damage", 0.88, 200, 300, 420, 380, track_id=9)],
+            frame, 1280, 720,
+        )
+
+    assert len(opened) == 1
+    assert opened[0].severity is Severity.CRITICAL
+    assert opened[0].label == "Belt Joint Rupture"
+
+
+def test_defects_beside_a_joint_are_reported_separately():
+    """A tear next to the splice is a tear. Only a separated splice is a rupture."""
+    engine = IncidentEngine(confirm_frames=1)
+    returned = engine.process(
+        [_splice(), Detection("tear", 0.8, 600, 320, 640, 700, track_id=2)],
+        1, 1280, 720,
+    )
+    assert sorted(d.cls for d in returned) == ["belt_joint", "tear"]
+    assert [i.cls for i in engine.open_incidents] == ["tear"]
 
 
 # -- incident lifecycle ------------------------------------------------------

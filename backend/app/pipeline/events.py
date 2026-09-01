@@ -3,8 +3,11 @@
 A detector emits boxes every frame; at 25 fps a single tear produces hundreds of
 them. Operators need *incidents*, not boxes. This module does three things:
 
-1. Escalates belt joints to ``joint_damage`` when a crack or tear overlaps them,
-   which is the specific failure mode the problem statement is about.
+1. Filters out classes that are landmarks rather than events. A belt is a loop,
+   so its splice passes the camera every revolution; raising an incident each
+   time floods the feed and buries the real defects. ``belt_joint`` is therefore
+   drawn but never opens an incident, while ``joint_damage`` -- a splice that has
+   separated -- is a detected defect like any other.
 2. Scores each detection's severity from its class, size and geometry.
    Longitudinal (tall, narrow) defects escalate fastest because those are the
    ones that propagate into a full rip-through.
@@ -34,21 +37,17 @@ BASE_SEVERITY: dict[str, Severity] = {
     "belt_joint": Severity.INFO,
 }
 
-# A joint is escalated when damage touches the splice band at all.
+# Classes that are drawn on the feed but never open an incident.
 #
-# Two earlier attempts got this wrong, both for the same reason: they asked how
-# much of one box was inside the other. IoU fails because a splice spans the
-# full belt width and a small crack inside it scores near zero. Containment
-# fails the other way -- it catches a crack sitting wholly within the band, but
-# a tear *propagating out of* the splice is mostly outside it (measured: 0.11),
-# and a rip running through one is 0.09. Those are the actual rupture cases and
-# both were missed.
-#
-# What matters physically is simply whether damage meets the splice. A splice is
-# a line across the entire belt, so damage anywhere along that line is damage at
-# the splice. The only thing to exclude is a one-pixel graze, hence a noise
-# floor expressed as a fraction of the band's own area.
-JOINT_TOUCH_MIN_FRAC = 0.005
+# A belt joint is a normal feature of the belt, not damage, and it comes past
+# once per revolution -- every few seconds. Opening an incident on sight produced
+# hundreds of identical INFO rows (measured: 1,800+ over one session, one per
+# ~60s) which buried the tears and holes an operator actually needs. Detecting it
+# still has value -- it is a landmark, and one joint per revolution is the basis
+# of the deferred belt-position digital twin -- so it is tracked and rendered,
+# just never alarmed on.
+NON_INCIDENT_CLASSES: frozenset[str] = frozenset({"belt_joint"})
+
 # Fraction of frame height above which a longitudinal defect is rip-through risk.
 LONGITUDINAL_HEIGHT_FRAC = 0.45
 # Height/width ratio at which a defect counts as longitudinal.
@@ -64,38 +63,6 @@ def _bump(sev: Severity, steps: int = 1) -> Severity:
     order = [Severity.INFO, Severity.LOW, Severity.MEDIUM,
              Severity.HIGH, Severity.CRITICAL]
     return order[min(len(order) - 1, order.index(sev) + steps)]
-
-
-def _intersection(a: Detection, b: Detection) -> float:
-    """Overlapping area of two boxes, in square pixels."""
-    ix1, iy1 = max(a.x1, b.x1), max(a.y1, b.y1)
-    ix2, iy2 = min(a.x2, b.x2), min(a.y2, b.y2)
-    return max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
-
-
-def touches_joint(defect: Detection, joint: Detection) -> bool:
-    """Does this defect meet the splice band, beyond a noise-floor graze?"""
-    if joint.area <= 0:
-        return False
-    return _intersection(defect, joint) >= JOINT_TOUCH_MIN_FRAC * joint.area
-
-
-def assess_joints(detections: list[Detection]) -> list[Detection]:
-    """Reclassify belt joints that overlap a crack or tear as joint damage.
-
-    A healthy splice is an expected feature of the belt and should not alarm
-    anyone. A splice with a crack running through it is the precise event this
-    whole system exists to catch, so it is promoted to its own class.
-    """
-    joints = [d for d in detections if d.cls == "belt_joint"]
-    if not joints:
-        return detections
-
-    threats = [d for d in detections if d.cls in ("crack", "tear", "hole")]
-    for joint in joints:
-        if any(touches_joint(t, joint) for t in threats):
-            joint.cls = "joint_damage"
-    return detections
 
 
 def score_severity(det: Detection, frame_w: int, frame_h: int) -> Severity:
@@ -220,7 +187,6 @@ class IncidentEngine:
 
         Returns the detections with severity populated.
         """
-        assess_joints(detections)
         for det in detections:
             det.severity = score_severity(det, frame_w, frame_h)
 
@@ -229,6 +195,11 @@ class IncidentEngine:
             if det.track_id is None:
                 # Untracked detections still render, but cannot form incidents:
                 # without identity we would open a new one every frame.
+                continue
+            if det.cls in NON_INCIDENT_CLASSES:
+                # Landmarks, not events. Rendered and returned to the client,
+                # but deliberately never advanced into a track, so they cannot
+                # open an incident however long they stay in frame.
                 continue
             seen.add(det.track_id)
             self._advance(det, frame_id, frame_w, frame_h)
@@ -257,10 +228,6 @@ class IncidentEngine:
             if track.peak is None:
                 track.peak = det
 
-        # A joint that later escalates carries the more serious class forward.
-        if det.cls != track.cls and det.cls == "joint_damage":
-            track.cls = det.cls
-
         if track.incident_id is None and track.hits >= self._confirm_frames:
             self._open_incident(track, det, frame_w, frame_h)
         elif track.incident_id is not None:
@@ -270,10 +237,6 @@ class IncidentEngine:
                 changed = False
                 if det.severity.rank > incident.severity.rank:
                     incident.severity, changed = det.severity, True
-                if det.cls != incident.cls and det.cls == "joint_damage":
-                    incident.cls = det.cls
-                    incident.label = CLASS_LABELS.get(det.cls, det.cls)
-                    changed = True
                 if changed and self._on_update is not None:
                     self._on_update(incident)
 

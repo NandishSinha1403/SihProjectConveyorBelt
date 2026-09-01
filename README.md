@@ -132,19 +132,19 @@ DESIGN.md   The dashboard's design system — the source of the colour and type
 A detector emits hundreds of boxes for a single tear. Operators need events, so
 [`app/pipeline/events.py`](backend/app/pipeline/events.py) does three things:
 
-1. **Joint rupture assessment.** A healthy splice is a normal feature of the
-   belt and stays informational. A splice that damage *meets* is reclassified as
-   `joint_damage` and escalated to CRITICAL — the exact failure mode this
-   project targets.
+1. **Landmarks are not events.** A belt is a loop, so its splice passes the
+   camera every revolution. Opening an incident on sight produced 80 identical
+   `Belt Joint / INFO` rows in a single session, burying the tears and holes an
+   operator actually needs. The rig model is therefore not trained on the healthy
+   joint at all, and `NON_INCIDENT_CLASSES` suppresses incidents for it so that
+   older weights which do emit it cannot flood the feed either.
 
-   Getting the geometry right took three attempts, and the wrong ones are
-   instructive. IoU fails because a splice spans the full belt width, so a crack
-   inside one scores near zero. Containment fails the other way: it catches a
-   crack sitting wholly within the band, but a tear *propagating out of* a
-   splice is mostly outside it (measured: 0.11 contained) and a rip running
-   through one is 0.09 — the two actual rupture cases, both missed. A splice is
-   a line across the whole belt, so the question is simply whether damage meets
-   it, with a noise floor to reject a one-pixel graze.
+   What *is* an event is the splice failing: separating at the belt edge into an
+   open wedge. That is `joint_damage`, surfaced as **Belt Joint Rupture** at
+   CRITICAL, and it is a *directly trained class* rather than something inferred
+   from a tear overlapping a healthy joint. An earlier version derived it
+   geometrically; a measured detection replaced the heuristic, and the geometry
+   came out.
 2. **Geometry-driven severity.** A long, narrow, longitudinal defect is the
    rip-through case and escalates hardest. An isolated scratch stays LOW.
 3. **Temporal confirmation.** A track must survive N consecutive frames before it
@@ -194,20 +194,88 @@ No Roboflow account? Download any YOLO-format dataset by hand and run
 `joint_damage`. Public datasets name these inconsistently ("Large Tear", "rip",
 "splice"), so [`training/classes.py`](training/classes.py) maps every dialect
 onto these six; unmapped labels are reported rather than silently dropped.
+The rig-specialised model trains on three of these — `tear`, `hole` and
+`joint_damage`. A healthy joint is not a defect and is not labelled;
+`joint_damage` is a separated splice, and the only class that opens a CRITICAL
+incident on sight.
 
 **What the public data currently supports: three classes.** The available
 datasets (1,573 images, 2,844 annotations) contain `tear`, `hole` and
 `belt_joint` only — no `scratch` or `crack` examples exist. `merge_datasets.py`
 therefore **excludes empty classes from the emitted dataset**: a model
 advertising a class it was never shown cannot predict it, and a dead class in
-the UI looks like a capability the system does not have. `joint_damage` is the
-deliberate exception — it is derived at runtime from a `belt_joint` overlapping
-a tear or hole, which is a real inference rather than a placeholder.
+the UI looks like a capability the system does not have.
 
-`belt_joint` is also under-represented at 18:1. Since joint rupture is the
-headline of the problem statement, labelling joints in your own footage is the
-highest-value data work available. See [`docs/DATASETS.md`](docs/DATASETS.md)
-for the full breakdown, attribution and the unmapped labels worth reconsidering.
+`belt_joint` is also under-represented at 18:1, and there are no `joint_damage`
+examples at all. See [`docs/DATASETS.md`](docs/DATASETS.md) for the full
+breakdown, attribution and the unmapped labels worth reconsidering.
+
+---
+
+## Training on your own belt
+
+A model trained on public industrial imagery does not transfer to a different
+belt. Measured — `belt_v1.pt`, which scores 95.3% mAP@.5 on its own validation
+split, against this project's prototype rig:
+
+| Footage | Detection rate |
+| --- | --- |
+| 29 photographs of the rig | **7 / 29** — 0/6 long tears, 0/4 large holes |
+| Held-out video, 281 frames | 33% of frames, **every box mislabelled `hole`** |
+| Running-belt video, 614 frames | **3%** of frames |
+
+Not a threshold problem: confidence 0.35 → 0.05 only reaches 12/29, and 1280px
+input reaches 12/29. The features are not being extracted at all. The rig is
+black rubber where defects read as *bright background showing through*; the
+public data is dusty grey belting where defects are dark-on-dark texture.
+
+So there is a second path, for a specific belt:
+
+```bash
+python training/extract_frames.py --dry-run   # what it would sample, and why
+python training/extract_frames.py             # -> training/data/rig_frames/
+```
+
+Labelling 361 frames by hand is hours of work, and most of it is wasted —
+consecutive frames of the same rig are near-identical, so a model that has seen
+one has effectively seen its neighbours. Label a seed and propagate instead:
+
+```bash
+python training/pick_seed.py                       # 25 maximally-varied frames
+#   ... label ONLY those in Roboflow, export YOLOv8 ...
+python training/propagate_labels.py <export-dir>   # pre-labels the other 336
+```
+
+`pick_seed.py` chooses by farthest-point sampling over image appearance, so the
+25 spread across lighting, view and belt position rather than clustering on
+whatever was filmed longest. It force-includes every rupture photograph — one
+physical defect, very few examples, and the class the project is judged on — and
+guarantees a floor per source clip, because a steady shot of a running belt
+produces frames so alike that variety-sampling skips it entirely.
+
+`propagate_labels.py` trains a small detector on the seed, warm-started from
+`belt_v1.pt`, then writes a pre-annotated YOLO dataset for the rest. Confidence
+defaults low on purpose: a missed box has to be drawn, a spurious one is deleted
+with a keystroke. The result is a draft — the human's job becomes correcting
+boxes rather than drawing them, which is roughly an order of magnitude less work.
+
+Then run [`kaggle_rig.ipynb`](kaggle_rig.ipynb), which fine-tunes **from
+`belt_v1.pt`** rather than from `yolo11s.pt`, since the belt-damage features are
+already in those weights and adapting them converges far faster on a few hundred
+images.
+
+`extract_frames.py` is not an ffmpeg dump. At 30 fps consecutive frames are the
+same picture, so it samples sparsely, drops frames too motion-blurred to label,
+de-duplicates the rest, and excludes by name any clip that would corrupt the run
+— a duplicate re-encode, a smeared take, and the held-out field-test video.
+
+**Measure the result on footage it never saw**, not on a validation split drawn
+from the same source:
+
+```bash
+python training/evaluate.py --video "assets/.../held-out.mov"
+python training/evaluate.py --images assets
+```
 
 **Hardware note — batch size is the whole story on 8 GB.** At `--batch 16` the
 run needs 4.3 GB and starts paging: ~18 min/epoch. At `--batch 8` it needs
@@ -269,7 +337,7 @@ All in `backend/.env` (see `.env.example`):
 | --- | --- | --- |
 | `SOURCE_URI` | *(empty)* | Auto-start this source on boot |
 | `DETECTOR` | `mock` | `mock` or `yolo` |
-| `MODEL_PATH` | `models/belt_v1.pt` | Trained weights |
+| `MODEL_PATH` | `models/belt_v1.pt` | Trained weights. `belt_v2.pt` is the rig-specialised model; keep both and switch here |
 | `DEVICE` | `auto` | `auto` picks CUDA, then MPS, then CPU |
 | `CONF_THRESHOLD` | `0.35` | Below the paper's 0.50 — catches early wear |
 | `IOU_THRESHOLD` | `0.45` | NMS overlap threshold |

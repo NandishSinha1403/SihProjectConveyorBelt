@@ -1,0 +1,8 @@
+path: /Users/am_nandish/Documents/SihProjectConveyer/training/data/rig_dataset
+train: train/images
+val: valid/images
+nc: 3
+names:
+  - tear
+  - hole
+  - joint_damage

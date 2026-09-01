@@ -2,7 +2,8 @@ import { beltHealth, healthLabel, SEVERITY_META } from "@/lib/severity";
 import type { IncidentSummary, Severity } from "@/lib/types";
 import { Panel, PanelHeader } from "@/components/ui/primitives";
 
-const CLASS_ORDER = ["joint_damage", "tear", "hole", "crack", "scratch", "belt_joint"];
+// belt_joint never opens an incident, so it can never appear in a summary.
+const CLASS_ORDER = ["joint_damage", "tear", "hole", "crack", "scratch"];
 
 /**
  * Belt health, and the two breakdowns that explain it.
