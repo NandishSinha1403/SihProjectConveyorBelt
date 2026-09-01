@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     max_stream_fps: int = 30
     loop_file_sources: bool = True
 
+    # Persistence (Supabase)
+    # Use the transaction pooler host (port 6543): Render's free tier is
+    # IPv4-only and Supabase's direct 5432 host resolves to IPv6 only.
+    database_url: str = ""
+    supabase_url: str = ""
+    supabase_service_key: str = ""
+    supabase_bucket: str = "snapshots"
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
@@ -61,14 +69,6 @@ class Settings(BaseSettings):
         return BASE_DIR / "media" / "uploads"
 
     @property
-    def snapshots_dir(self) -> Path:
-        return BASE_DIR / "media" / "snapshots"
-
-    @property
-    def db_path(self) -> Path:
-        return BASE_DIR / "data" / "conveyor.db"
-
-    @property
     def model_file(self) -> Path:
         p = Path(self.model_path)
         return p if p.is_absolute() else BASE_DIR / p
@@ -78,8 +78,6 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     s = Settings()
     s.uploads_dir.mkdir(parents=True, exist_ok=True)
-    s.snapshots_dir.mkdir(parents=True, exist_ok=True)
-    s.db_path.parent.mkdir(parents=True, exist_ok=True)
     return s
 
 

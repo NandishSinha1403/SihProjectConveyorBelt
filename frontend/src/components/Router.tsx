@@ -52,16 +52,19 @@ export function Link({
   to,
   children,
   className,
+  title,
 }: {
   to: string;
   children: ReactNode;
   className?: string;
+  title?: string;
 }) {
   const { navigate } = useRouter();
   return (
     <a
       href={`#${to}`}
       className={className}
+      title={title}
       onClick={(e) => {
         e.preventDefault();
         navigate(to);

@@ -9,13 +9,14 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 
 import cv2
 
 from ..bus import bus
 from ..config import settings
 from ..sources import FrameSource, SourceError, from_uri
+from ..store import storage
 from ..store.db import get_db
 from .annotate import draw
 from .capture import CaptureThread, LatestFrame
@@ -24,6 +25,17 @@ from .events import Incident, IncidentEngine
 from .types import CLASS_LABELS, Detection, FrameResult
 
 log = logging.getLogger(__name__)
+
+# One worker: uploads are rare and ordering them behind each other costs
+# nothing, while an unbounded pool could pile up threads if Supabase is slow.
+_uploads = ThreadPoolExecutor(max_workers=1, thread_name_prefix="snapshot")
+
+
+def _upload_snapshot(key: str, jpeg: bytes) -> None:
+    try:
+        storage.upload(key, jpeg)
+    except Exception:  # noqa: BLE001 - evidence is worth less than the stream
+        log.exception("Failed to upload snapshot %s", key)
 
 
 class StreamSession:
@@ -114,6 +126,11 @@ class StreamSession:
 
         log.info("Session stopped: %s", self.uri)
         bus.publish("stream.status", self.status())
+
+    @property
+    def session_id(self) -> int | None:
+        """The database row for this run, or None before ``start()`` completes."""
+        return self._session_id
 
     @property
     def running(self) -> bool:
@@ -221,19 +238,27 @@ class StreamSession:
                                       "ended": True, "error": error})
 
     def _save_snapshot(self, incident: Incident, det: Detection) -> str | None:
-        """Persist a cropped-in still of the defect for the incident record."""
+        """Persist a cropped-in still of the defect for the incident record.
+
+        The object key is derived locally and returned at once, so the incident
+        row is written complete; the upload itself runs on ``_uploads`` because
+        a round trip to Supabase must not stall inference.
+        """
         frame = self.raw.get()
         if frame is None:
             return None
         try:
             image = draw(frame.image, [det])
-            name = (f"incident_{int(incident.opened_at)}_{incident.id}_"
-                    f"{incident.cls}.jpg")
-            path: Path = settings.snapshots_dir / name
-            cv2.imwrite(str(path), image, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-            return name
+            ok, buf = cv2.imencode(".jpg", image,
+                                   [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+            if not ok:
+                return None
+            key = (f"incident_{int(incident.opened_at)}_{incident.id}_"
+                   f"{incident.cls}.jpg")
+            _uploads.submit(_upload_snapshot, key, buf.tobytes())
+            return key
         except Exception:  # noqa: BLE001
-            log.exception("Failed to write snapshot for incident %d", incident.id)
+            log.exception("Failed to encode snapshot for incident %d", incident.id)
             return None
 
 

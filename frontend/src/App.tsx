@@ -1,19 +1,29 @@
 import { useEffect, useState } from "react";
-import { FileWarning, MonitorPlay, Settings as SettingsIcon, Video } from "lucide-react";
+import {
+  Box,
+  FileWarning,
+  MonitorPlay,
+  Settings as SettingsIcon,
+  Video,
+} from "lucide-react";
 import { Link, RouterProvider, useRouter } from "@/components/Router";
 import { useEventSocket } from "@/hooks/useEventSocket";
+import { useTheme } from "@/hooks/useTheme";
 import { LiveMonitor } from "@/pages/LiveMonitor";
 import { Sources } from "@/pages/Sources";
 import { Incidents } from "@/pages/Incidents";
 import { Settings } from "@/pages/Settings";
+import { Rig } from "@/pages/Rig";
 import { cn } from "@/lib/utils";
 import { Announcer } from "@/components/Announcer";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAlarm } from "@/hooks/useAlarm";
 
 const NAV = [
   { to: "/", label: "Monitor", icon: MonitorPlay },
   { to: "/incidents", label: "Incidents", icon: FileWarning },
   { to: "/sources", label: "Sources", icon: Video },
+  { to: "/rig", label: "3D Model", icon: Box },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
@@ -21,6 +31,7 @@ const TITLES: Record<string, string> = {
   "/": "Live monitor",
   "/incidents": "Incidents",
   "/sources": "Sources",
+  "/rig": "3D Model",
   "/settings": "Settings",
 };
 
@@ -28,6 +39,15 @@ function Shell() {
   const { path } = useRouter();
   const socket = useEventSocket();
   const [incidentKey, setIncidentKey] = useState(0);
+  const dashboardTheme = useTheme("belt-sentinel-theme", "dark");
+
+  // The dashboard's own light/dark switch, applied to the document root so
+  // every Tailwind utility that reads --color-* repaints. The 3D rig keeps a
+  // completely separate switch (see Rig.tsx) -- two surfaces, two palettes,
+  // never tied together.
+  useEffect(() => {
+    document.documentElement.dataset.theme = dashboardTheme.theme;
+  }, [dashboardTheme.theme]);
 
   // Announcements and the alarm belong to the session, not to one tab. An
   // operator reviewing incident history must still be told when a new critical
@@ -41,6 +61,18 @@ function Shell() {
   const criticalOpen = socket.alerts.some(
     (a) => a.severity === "critical" && a.closed_at === null,
   );
+
+  // The 3D rig is its own site-within-the-site -- full viewport, its own
+  // toolbar, no Belt Sentinel chrome around it. A small link back is the only
+  // thing carried over from the dashboard shell.
+  if (path === "/rig") {
+    return (
+      <div className="fixed inset-0">
+        <Announcer alerts={socket.alerts} />
+        <Rig />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">
@@ -107,8 +139,9 @@ function Shell() {
           })}
         </nav>
 
-        <div className="mt-auto hidden px-5 py-5 lg:block">
+        <div className="mt-auto hidden items-center justify-between px-5 py-5 lg:flex">
           <ConnectionState connected={socket.connected} />
+          <ThemeToggle theme={dashboardTheme.theme} onToggle={dashboardTheme.toggle} />
         </div>
       </aside>
 
@@ -118,15 +151,19 @@ function Shell() {
           <h1 className="truncate text-[2.0625rem] leading-none tracking-[-0.02em] text-bone sm:text-[2.5rem]">
             {TITLES[path] ?? TITLES["/"]}
           </h1>
-          <div className="lg:hidden">
+          <div className="flex items-center gap-3 lg:hidden">
             <ConnectionState connected={socket.connected} compact />
+            <ThemeToggle theme={dashboardTheme.theme} onToggle={dashboardTheme.toggle} />
           </div>
         </header>
 
         <main className="flex-1 px-4 pb-8 sm:px-6 lg:px-8">
           {path === "/" && <LiveMonitor socket={socket} alarm={alarm} />}
-          {path === "/incidents" && <Incidents refreshKey={incidentKey} />}
+          {path === "/incidents" && (
+            <Incidents refreshKey={incidentKey} status={socket.status} />
+          )}
           {path === "/sources" && <Sources status={socket.status} />}
+          {path === "/rig" && <Rig />}
           {path === "/settings" && <Settings />}
         </main>
       </div>

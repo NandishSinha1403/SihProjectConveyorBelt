@@ -10,6 +10,7 @@ import {
   Panel,
   PanelHeader,
   SeverityBadge,
+  SnapshotImage,
 } from "@/components/ui/primitives";
 
 export function AlertFeed({
@@ -118,6 +119,7 @@ function AlertRow({
   confirming: boolean;
 }) {
   const active = alert.closed_at === null;
+  const [thumbFailed, setThumbFailed] = useState(false);
 
   return (
     <li
@@ -132,7 +134,7 @@ function AlertRow({
       )}
     >
 
-      {alert.snapshot && (
+      {alert.snapshot && !thumbFailed && (
         <a
           href={api.incidentSnapshotUrl(alert.id)}
           target="_blank"
@@ -140,11 +142,11 @@ function AlertRow({
           className="group relative shrink-0"
           title="Open full snapshot"
         >
-          <img
+          <SnapshotImage
             src={api.incidentSnapshotUrl(alert.id)}
             alt={`${alert.label} snapshot`}
-            loading="lazy"
             className="h-12 w-16 rounded-[5px] border border-ash/70 object-cover"
+            onFailed={() => setThumbFailed(true)}
           />
           <span className="absolute inset-0 hidden items-center justify-center rounded-[5px] bg-obsidian/70 group-hover:flex">
             <ExternalLink size={12} strokeWidth={1.25} className="text-bone" />

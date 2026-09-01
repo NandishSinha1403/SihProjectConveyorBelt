@@ -147,7 +147,7 @@ with the footage. `DETECTOR=yolo` removes it entirely.
                           MJPEG stream       EventBus ──▶ WebSocket ──▶ React
                                                   │
                                                   ▼
-                                              SQLite + snapshot JPEGs
+                                       Supabase: rows + snapshot JPEGs
 ```
 
 `EventBus` is topic-based publish/subscribe. The vision pipeline is merely its
@@ -359,6 +359,10 @@ All in `backend/.env` (see `.env.example`):
 
 | Key | Default | Notes |
 | --- | --- | --- |
+| `DATABASE_URL` | *(required)* | Supabase Postgres, **transaction pooler** (port 6543) |
+| `SUPABASE_URL` | *(required)* | Project URL, for the snapshot bucket |
+| `SUPABASE_SERVICE_KEY` | *(required)* | `service_role` key — backend only, never the frontend |
+| `SUPABASE_BUCKET` | `snapshots` | Private Storage bucket holding incident evidence |
 | `SOURCE_URI` | *(empty)* | Auto-start this source on boot |
 | `DETECTOR` | `mock` | `mock` or `yolo` |
 | `MODEL_PATH` | `models/belt_v1.pt` | `belt_v2.pt` for the rig-specialised model |

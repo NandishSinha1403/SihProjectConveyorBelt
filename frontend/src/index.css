@@ -73,6 +73,38 @@
   --ease-focus: cubic-bezier(0.52, 0.01, 0, 1);
 }
 
+/* ---------------------------------------------------------------------------
+   Light mode. Same roles, same class names -- `bg-obsidian`, `text-bone`,
+   `border-ash` and the rest keep meaning "canvas", "primary ink", "hairline"
+   in either mode, because Tailwind v4 utilities reference these custom
+   properties rather than inlining them. Overriding them here, at higher
+   specificity than the `@theme` block's `:root`, is the entire mechanism --
+   no component file changes with the mode.
+
+   Severity hues are deepened slightly for AA contrast on a light ground;
+   the reference's synthetic obsidian black becomes a slightly warm paper
+   white rather than pure #fff, so the panel/raised steps still read as a
+   surface stack instead of flattening to one white.
+--------------------------------------------------------------------------- */
+:root[data-theme="light"] {
+  --color-obsidian: #f7f6f4;
+  --color-pitch: #ffffff;
+  --color-panel: #ffffff;
+  --color-raised: #efeeeb;
+  --color-veil: #9aa7b0;
+
+  --color-bone: #17181a;
+  --color-fog: #5c6773;
+  --color-ash: #dcdad5;
+
+  --color-sev-critical: #d81f1f;
+  --color-sev-high: #d9600a;
+  --color-sev-medium: #a1780a;
+  --color-sev-low: #1f5fd9;
+  --color-sev-info: #5c6773;
+  --color-ok: #178a3e;
+}
+
 @layer base {
   * {
     border-color: var(--color-ash);

@@ -1,8 +1,65 @@
-import { forwardRef } from "react";
+import { forwardRef, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ReactNode, ButtonHTMLAttributes, HTMLAttributes } from "react";
 import { SEVERITY_META } from "@/lib/severity";
 import type { Severity } from "@/lib/types";
+
+/* -- SnapshotImage ----------------------------------------------------------
+   A snapshot's row exists the instant an incident opens, but the JPEG
+   reaches Supabase Storage a moment later on a background upload -- an
+   <img> that loads at the same instant the row does will 404 once and stay
+   broken forever. This retries a few times with backoff before giving up,
+   which covers that gap without making the incident-open path wait on the
+   upload it exists to keep off the inference thread.
+-------------------------------------------------------------------------- */
+
+const SNAPSHOT_RETRY_DELAYS_MS = [400, 800, 1600, 3200];
+
+export function SnapshotImage({
+  src,
+  alt,
+  className,
+  onFailed,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  /** Called once retries are exhausted, so a caller can swap in a fallback icon. */
+  onFailed?: () => void;
+}) {
+  const [attempt, setAttempt] = useState(0);
+  const [failed, setFailed] = useState(false);
+
+  // A new incident id means a new image; start its own retry sequence.
+  useEffect(() => {
+    setAttempt(0);
+    setFailed(false);
+  }, [src]);
+
+  if (failed) return null;
+
+  return (
+    <img
+      // Cache-busting query on every retry -- otherwise the browser can
+      // serve the cached 404 response instead of asking Storage again.
+      src={attempt === 0 ? src : `${src}${src.includes("?") ? "&" : "?"}retry=${attempt}`}
+      alt={alt}
+      loading="lazy"
+      className={className}
+      onError={() => {
+        if (attempt >= SNAPSHOT_RETRY_DELAYS_MS.length) {
+          setFailed(true);
+          onFailed?.();
+          return;
+        }
+        window.setTimeout(
+          () => setAttempt((a) => a + 1),
+          SNAPSHOT_RETRY_DELAYS_MS[attempt],
+        );
+      }}
+    />
+  );
+}
 
 /* -- Panel ----------------------------------------------------------------
    Flat by design. Depth is the surface step plus a hairline — never a shadow.

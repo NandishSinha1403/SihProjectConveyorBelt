@@ -1,0 +1,442 @@
+/*
+ * Styling for the 3D rig view, ported from Unplayed's standalone Next.js
+ * prototype (design-system.css + globals.css). Every selector is scoped
+ * under .rig-page so its tokens, resets and bare-tag rules (body, h1..h4,
+ * *, :focus) never leak into the rest of the dashboard, which already has
+ * its own design system in index.css.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;600&display=swap');
+
+.rig-page {
+  --color-bg: #f2f2f3;
+  --color-surface: #e9e9ea;
+  --color-text: #1d1f20;
+  --color-accent: #5980a6;
+  --color-accent-2: #728fab;
+  --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);
+
+  --color-neutral-100: #f5f5f8;
+  --color-neutral-200: #e7e7ea;
+  --color-neutral-300: #d4d4d7;
+  --color-neutral-400: #b7b7ba;
+  --color-neutral-500: #98989b;
+  --color-neutral-600: #7a7a7d;
+  --color-neutral-700: #5d5d60;
+  --color-neutral-800: #424244;
+  --color-neutral-900: #2b2b2d;
+
+  --color-accent-100: #eef6ff;
+  --color-accent-200: #d6ebff;
+  --color-accent-300: #b5d9fd;
+  --color-accent-400: #94bce3;
+  --color-accent-500: #749dc4;
+  --color-accent-600: #597ea3;
+  --color-accent-700: #416180;
+  --color-accent-800: #2c455d;
+  --color-accent-900: #1d2d3d;
+
+  --color-accent-2-100: #eef6ff;
+  --color-accent-2-200: #d6ebff;
+  --color-accent-2-300: #bdd8f2;
+  --color-accent-2-400: #9ebbd8;
+  --color-accent-2-500: #7e9cb8;
+  --color-accent-2-600: #627d98;
+  --color-accent-2-700: #486077;
+  --color-accent-2-800: #314457;
+  --color-accent-2-900: #1f2d3a;
+
+  --font-heading: 'Barlow Condensed', system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --font-body: 'Barlow', system-ui, sans-serif;
+
+  --space-1: 3.4px;
+  --space-2: 6.8px;
+  --space-3: 10.2px;
+  --space-4: 13.6px;
+  --space-6: 20.4px;
+  --space-8: 27.2px;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 7px;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2b2b2d 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2b2b2d 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent);
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 400;
+  overflow: hidden;
+}
+
+/* Dark variant of the same roles -- this page's own switch (see the button
+   in its toolbar), entirely independent of the dashboard's data-theme on
+   <html>. Neutral ramp is inverted rather than reused, since "700" has to
+   stay "the muted-label colour" on either background, not the same hex. */
+.rig-page[data-theme='dark'] {
+  --color-bg: #191a1c;
+  --color-surface: #232427;
+  --color-text: #eef0f2;
+  --color-accent: #7fa4c8;
+  --color-accent-2: #8fa8c2;
+  --color-divider: color-mix(in srgb, #eef0f2 16%, transparent);
+
+  --color-neutral-100: #2a2b2d;
+  --color-neutral-200: #343538;
+  --color-neutral-300: #46474a;
+  --color-neutral-400: #5a5b5e;
+  --color-neutral-500: #747578;
+  --color-neutral-600: #909195;
+  --color-neutral-700: #adaeb2;
+  --color-neutral-800: #cfd0d3;
+  --color-neutral-900: #f0f1f3;
+
+  --color-accent-700: #9dc0e0;
+  --color-accent-800: #bcd6ee;
+
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+.rig-page[data-theme='dark'] .stage-err {
+  color: #ff6b52;
+}
+
+.rig-page * {
+  box-sizing: border-box;
+}
+.rig-page h1,
+.rig-page h2,
+.rig-page h3,
+.rig-page h4,
+.rig-page h5,
+.rig-page h6 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0 0 var(--space-2);
+}
+.rig-page h1 { font-size: 42px; }
+.rig-page h2 { font-size: 32px; }
+.rig-page h3 { font-size: 25px; }
+.rig-page h4 { font-size: 20px; }
+.rig-page h5 { font-size: 16px; }
+.rig-page h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+.rig-page p { margin: 0 0 var(--space-3); }
+.rig-page a { color: var(--color-accent); text-underline-offset: 3px; }
+.rig-page :focus { outline: none; }
+.rig-page :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.rig-page ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* — buttons — */
+.rig-page .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 14px; line-height: 1.2; color: var(--color-text);
+  background: transparent; border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: var(--radius-md);
+}
+.rig-page .btn svg { display: block; }
+.rig-page .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.rig-page .btn-primary { background: var(--color-accent); color: var(--color-bg); }
+.rig-page .btn-primary:hover { background: var(--color-accent-600); }
+.rig-page .btn-primary:active { background: var(--color-accent-700); }
+.rig-page .btn-secondary { border-color: var(--color-divider); }
+.rig-page .btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.rig-page .btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.rig-page .btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.rig-page .btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.rig-page .btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+
+/* — forms — */
+.rig-page .field > label {
+  display: block; font-size: 12px; margin-bottom: 5px;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+.rig-page input[type='range'] {
+  width: 100%;
+  accent-color: var(--color-accent);
+}
+.rig-page .sw {
+  display: flex; align-items: center; gap: 6px; font-size: 12px;
+  text-transform: uppercase; letter-spacing: 0.06em; pointer-events: auto;
+}
+
+/* — blueprint frame: components are wireframe objects — square, transparent,
+     hairline-bordered — */
+.rig-page .btn { border: 1px solid var(--color-divider); border-radius: 0; }
+.rig-page .btn-primary { border-color: var(--color-accent); }
+.rig-page .btn-ghost { border-color: transparent; }
+
+.rig-page .blueprint {
+  position: relative;
+  border: 1px solid var(--color-divider);
+  border-radius: 0;
+}
+.rig-page .blueprint > .corner {
+  position: absolute; width: 11px; height: 11px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.rig-page .blueprint > .corner::before,
+.rig-page .blueprint > .corner::after {
+  content: ''; position: absolute; background: currentColor;
+}
+.rig-page .blueprint > .corner::before { left: 5px; top: 0; width: 1px; height: 100%; }
+.rig-page .blueprint > .corner::after  { top: 5px; left: 0; width: 100%; height: 1px; }
+.rig-page .blueprint > .corner.tl { top: -6px; left: -6px; }
+.rig-page .blueprint > .corner.tr { top: -6px; right: -6px; }
+.rig-page .blueprint > .corner.bl { bottom: -6px; left: -6px; }
+.rig-page .blueprint > .corner.br { bottom: -6px; right: -6px; }
+
+/* ── 3D stage ─────────────────────────────────────────────────────────── */
+
+.rig-page .stage {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--stage-bg, #f0eee6);
+  overflow: hidden;
+}
+.rig-page .stage canvas {
+  display: block;
+  outline: none;
+}
+.rig-page .stage-toolbar {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  max-width: calc(100% - 32px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.rig-page .stage-toolbar button {
+  appearance: none;
+  border: 1px solid var(--color-divider);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-bg) 88%, transparent);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 9px 12px;
+  cursor: default;
+  backdrop-filter: blur(3px);
+}
+.rig-page .stage-toolbar button:hover {
+  background: color-mix(in srgb, var(--color-bg) 98%, transparent);
+}
+.rig-page .stage-toolbar button:active { transform: translateY(1px); }
+.rig-page .stage-toolbar button[disabled] { opacity: 0.5; pointer-events: none; }
+.rig-page .stage-note {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  max-width: 60%;
+  font: 400 12px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  user-select: none;
+}
+.rig-page .stage-err {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  font: 500 14px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #b0372a;
+  text-align: center;
+  white-space: pre-line;
+}
+
+/* ── Back to Belt Sentinel: styled like its toolbar siblings, just a link -- */
+
+.rig-page .rig-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-divider);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-bg) 88%, transparent);
+  backdrop-filter: blur(3px);
+  color: var(--color-text);
+  text-decoration: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 9px 12px;
+}
+.rig-page .rig-back:hover {
+  background: color-mix(in srgb, var(--color-bg) 98%, transparent);
+}
+
+/* ── HMI overlays ─────────────────────────────────────────────────────── */
+
+.rig-page .ov {
+  position: absolute;
+  pointer-events: none;
+}
+.rig-page .panel {
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--color-bg) 88%, transparent);
+  border: 1px solid var(--color-neutral-300);
+  padding: var(--space-4);
+  backdrop-filter: blur(3px);
+}
+.rig-page .kicker {
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+  color: var(--color-accent-700);
+  margin: 0 0 var(--space-2);
+}
+.rig-page .num {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.rig-page #labels { inset: 0; }
+
+.rig-page #readouts {
+  top: var(--space-4);
+  right: var(--space-4);
+  width: 250px;
+}
+.rig-page #readouts .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: 5px 0;
+  border-bottom: 1px solid var(--color-neutral-200);
+}
+.rig-page #readouts .row:last-child { border-bottom: none; }
+.rig-page #readouts .lbl {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-neutral-700);
+}
+.rig-page #readouts .num { font-size: 20px; }
+.rig-page #readouts .u {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-neutral-600);
+  margin-left: 3px;
+}
+.rig-page #readouts .state { font-size: 14px; }
+
+.rig-page #controls {
+  bottom: var(--space-4);
+  left: var(--space-4);
+  width: 520px;
+  max-height: calc(100% - 150px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.rig-page #controls .cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+@media (max-height: 760px) {
+  .rig-page #title p { display: none; }
+}
+@media (max-width: 900px) {
+  .rig-page #controls { width: 360px; }
+  .rig-page #controls .cols { grid-template-columns: 1fr; }
+}
+.rig-page .btnrow { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.rig-page .btnrow .btn { flex: 0 1 auto; font-size: 13px; padding: 8px 12px; }
+
+.rig-page #title {
+  top: var(--space-4);
+  left: var(--space-4);
+  max-width: 330px;
+}
+.rig-page #title h1 { font-size: 22px; margin: 0; line-height: 1.1; }
+.rig-page #title p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--color-neutral-700);
+  max-width: 38ch;
+}
+
+.rig-page .lab {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 11px;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-bg) 82%, transparent);
+  border: 1px solid var(--color-accent);
+  padding: 2px 6px;
+}
+.rig-page .lab::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: 16px;
+  background: var(--color-accent);
+}
+
+.rig-page #banner {
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #b0372a;
+  color: #fff;
+  padding: 10px var(--space-4);
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 15px;
+  transform: translateY(-100%);
+  transition: transform 180ms ease-out;
+  display: flex;
+  gap: var(--space-4);
+}
+.rig-page #banner.on { transform: none; }
+.rig-page #banner .reason { font-weight: 400; }
+
+.rig-page .field label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.rig-page .alarm { color: #b0372a; }
+.rig-page .field-mb2 { margin-bottom: var(--space-2); }
+.rig-page .field-mb3 { margin-bottom: var(--space-3); }
+.rig-page .kicker-top { margin-top: 0; }
+.rig-page .btn.btn-estop,
+.rig-page .btn.btn-estop:hover,
+.rig-page .btn.btn-estop:active {
+  background: #b0372a;
+  color: #fff;
+  border-color: #b0372a;
+}

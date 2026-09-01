@@ -1,9 +1,9 @@
-"""Delete incidents from the history, and the snapshot JPEGs they own.
+"""Delete incidents from the history, and the snapshot objects they own.
 
     python backend/scripts/prune_incidents.py --cls belt_joint --dry-run
     python backend/scripts/prune_incidents.py --cls belt_joint
     python backend/scripts/prune_incidents.py --before 2026-09-01   # clear test runs
-    python backend/scripts/prune_incidents.py --orphan-snapshots    # tidy disk only
+    python backend/scripts/prune_incidents.py --orphan-snapshots    # tidy the bucket
 
 Two jobs this exists for:
 
@@ -14,19 +14,22 @@ Two jobs this exists for:
   rather than a month of development runs.
 
 Deletes are reported before they happen and refuse to run without ``--yes``
-unless the terminal is interactive, because an incident history is evidence.
+unless the terminal is interactive, because an incident history is evidence --
+and since the move to Supabase it is shared evidence, not a local file someone
+can restore from their own disk.
 """
 from __future__ import annotations
 
 import argparse
-import sqlite3
 import sys
 import time
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent   # backend/
-DB_PATH = BASE_DIR / "data" / "conveyor.db"
-SNAPSHOT_DIR = BASE_DIR / "media" / "snapshots"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from app.config import settings          # noqa: E402
+from app.store import storage            # noqa: E402
+from app.store.db import Database        # noqa: E402
 
 
 def parse_date(text: str) -> float:
@@ -39,44 +42,41 @@ def parse_date(text: str) -> float:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--db", default=str(DB_PATH))
     ap.add_argument("--cls", action="append", default=[],
                     help="delete incidents of this class (repeatable)")
     ap.add_argument("--before", help="delete incidents opened before YYYY-MM-DD")
     ap.add_argument("--all", action="store_true", help="delete every incident")
     ap.add_argument("--orphan-snapshots", action="store_true",
-                    help="also delete snapshot files no incident references")
+                    help="also delete snapshot objects no incident references")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--yes", action="store_true", help="skip the confirmation")
     args = ap.parse_args()
 
-    db = Path(args.db)
-    if not db.exists():
-        sys.exit(f"No database at {db}")
     if not (args.cls or args.before or args.all or args.orphan_snapshots):
         sys.exit("Nothing selected. Pass --cls, --before, --all or "
                  "--orphan-snapshots (see --help).")
 
-    conn = sqlite3.connect(str(db))
-    conn.row_factory = sqlite3.Row
+    db = Database(settings.database_url)
+    pool = db.pool
 
     where, params = [], []
     if not args.all:
         if args.cls:
-            where.append(f"cls IN ({','.join('?' * len(args.cls))})")
-            params.extend(args.cls)
+            where.append("cls = ANY(%s)")
+            params.append(args.cls)
         if args.before:
-            where.append("opened_at < ?")
+            where.append("opened_at < %s")
             params.append(parse_date(args.before))
     clause = f" WHERE {' OR '.join(where)}" if where else ""
 
     rows = []
     if args.cls or args.before or args.all:
-        rows = conn.execute(
-            f"SELECT id, cls, severity, snapshot FROM incidents{clause}", params
-        ).fetchall()
+        with pool.connection() as conn:
+            rows = conn.execute(
+                f"SELECT id, cls, severity, snapshot FROM incidents{clause}", params
+            ).fetchall()
+            total = conn.execute("SELECT COUNT(*) n FROM incidents").fetchone()["n"]
 
-        total = conn.execute("SELECT COUNT(*) FROM incidents").fetchone()[0]
         print(f"{len(rows)} of {total} incidents selected for deletion:")
         counts: dict[str, int] = {}
         for row in rows:
@@ -86,52 +86,41 @@ def main() -> int:
         if not rows:
             print("   (nothing matched)")
 
-    orphans: list[Path] = []
+    orphans: list[str] = []
     if args.orphan_snapshots:
-        referenced = {r[0] for r in conn.execute(
-            "SELECT snapshot FROM incidents WHERE snapshot IS NOT NULL")}
+        with pool.connection() as conn:
+            referenced = {r["snapshot"] for r in conn.execute(
+                "SELECT snapshot FROM incidents WHERE snapshot IS NOT NULL")}
         doomed = {row["snapshot"] for row in rows if row["snapshot"]}
-        if SNAPSHOT_DIR.exists():
-            orphans = [p for p in SNAPSHOT_DIR.iterdir()
-                       if p.is_file() and p.suffix == ".jpg"
-                       and (p.name not in referenced or p.name in doomed)]
-        print(f"\n{len(orphans)} snapshot files unreferenced after this delete.")
+        orphans = [name for name in storage.list_objects()
+                   if name not in referenced or name in doomed]
+        print(f"\n{len(orphans)} snapshot objects unreferenced after this delete.")
 
     if args.dry_run:
         print("\n--dry-run: nothing deleted.")
-        conn.close()
+        db.close()
         return 0
 
     if not args.yes and sys.stdin.isatty():
         reply = input("\nDelete these permanently? [y/N] ").strip().lower()
         if reply != "y":
             print("Cancelled.")
-            conn.close()
+            db.close()
             return 1
     elif not args.yes:
         sys.exit("\nRefusing to delete without --yes in a non-interactive shell.")
 
-    removed_files = 0
-    for row in rows:
-        if row["snapshot"]:
-            path = SNAPSHOT_DIR / row["snapshot"]
-            if path.exists():
-                path.unlink()
-                removed_files += 1
-    for path in orphans:
-        if path.exists():
-            path.unlink()
-            removed_files += 1
+    doomed_objects = [row["snapshot"] for row in rows if row["snapshot"]]
+    storage.delete(doomed_objects + orphans)
 
     if rows:
-        conn.executemany("DELETE FROM incidents WHERE id = ?",
-                         [(row["id"],) for row in rows])
-        conn.commit()
-    conn.execute("VACUUM")
-    conn.close()
+        with pool.connection() as conn:
+            conn.execute("DELETE FROM incidents WHERE id = ANY(%s)",
+                         ([row["id"] for row in rows],))
+    db.close()
 
     print(f"\n+ {len(rows)} incidents deleted")
-    print(f"+ {removed_files} snapshot files removed")
+    print(f"+ {len(doomed_objects) + len(orphans)} snapshot objects removed")
     return 0
 
 

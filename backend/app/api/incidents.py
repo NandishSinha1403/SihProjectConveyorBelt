@@ -6,11 +6,11 @@ import io
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 
-from ..config import settings
 from ..pipeline.session import manager
 from ..pipeline.types import CLASS_LABELS
+from ..store import storage
 from ..store.db import get_db
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
@@ -67,6 +67,31 @@ async def export_csv(severity: str | None = None, cls: str | None = None):
     )
 
 
+@router.delete("/session/current")
+async def clear_current_session() -> dict:
+    """Delete every incident opened by the run in progress.
+
+    Deliberately scoped to the *live* session rather than "the most recent
+    one in the database": a session that has already ended has no ongoing
+    UI state to reconcile, so clearing it belongs under clear-all, not here.
+    """
+    session = manager.session
+    if session is None or session.session_id is None:
+        raise HTTPException(status_code=409, detail="No session is running")
+    session_id = session.session_id
+    deleted, keys = await run_in_threadpool(get_db().clear_incidents, session_id)
+    await run_in_threadpool(storage.delete, keys)
+    return {"session_id": session_id, "deleted": deleted, "snapshots_removed": len(keys)}
+
+
+@router.delete("")
+async def clear_all_incidents() -> dict:
+    """Delete the entire incident history, live session included."""
+    deleted, keys = await run_in_threadpool(get_db().clear_incidents, None)
+    await run_in_threadpool(storage.delete, keys)
+    return {"deleted": deleted, "snapshots_removed": len(keys)}
+
+
 @router.get("/{incident_id}")
 async def get_incident(incident_id: int) -> dict:
     row = await run_in_threadpool(get_db().get_incident, incident_id)
@@ -81,7 +106,10 @@ async def incident_snapshot(incident_id: int):
     if row is None or not row.get("snapshot"):
         raise HTTPException(status_code=404, detail="Snapshot not found")
 
-    path = (settings.snapshots_dir / row["snapshot"]).resolve()
-    if not path.is_relative_to(settings.snapshots_dir.resolve()) or not path.is_file():
-        raise HTTPException(status_code=404, detail="Snapshot file missing")
-    return FileResponse(path, media_type="image/jpeg")
+    # Redirect rather than proxy: the bytes then travel from Supabase straight
+    # to the browser, off the API box and out of its egress budget.
+    try:
+        url = await run_in_threadpool(storage.signed_url, row["snapshot"])
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=404, detail="Snapshot unavailable") from exc
+    return RedirectResponse(url, status_code=302)

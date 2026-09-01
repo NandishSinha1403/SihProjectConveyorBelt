@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, ImageOff, X } from "lucide-react";
+import { Download, ImageOff, Trash2, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { SEVERITY_META } from "@/lib/severity";
-import type { Incident, Severity } from "@/lib/types";
+import type { Incident, Severity, StreamStatus } from "@/lib/types";
 import { cn, formatDateTime, formatDuration } from "@/lib/utils";
 import {
   Button,
@@ -11,6 +11,7 @@ import {
   PanelHeader,
   SeverityBadge,
   Skeleton,
+  SnapshotImage,
 } from "@/components/ui/primitives";
 
 const PAGE_SIZE = 50;
@@ -21,7 +22,13 @@ const SEVERITIES: Severity[] = ["critical", "high", "medium", "low", "info"];
 // backend/app/pipeline/events.py.
 const CLASSES = ["joint_damage", "tear", "hole", "crack", "scratch"];
 
-export function Incidents({ refreshKey }: { refreshKey: number }) {
+export function Incidents({
+  refreshKey,
+  status,
+}: {
+  refreshKey: number;
+  status: StreamStatus | null;
+}) {
   const [items, setItems] = useState<Incident[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -29,6 +36,12 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
   const [cls, setCls] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Incident | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // Both clears are permanent, so each needs a second deliberate click before
+  // it fires -- the same one-tap-arms, second-tap-fires pattern Sources uses
+  // for deleting footage, rather than a modal that interrupts the task.
+  const [confirmClear, setConfirmClear] = useState<"session" | "all" | null>(null);
+  const [clearing, setClearing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,19 +68,91 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const clear = async (target: "session" | "all") => {
+    if (confirmClear !== target) {
+      setConfirmClear(target);
+      window.setTimeout(
+        () => setConfirmClear((c) => (c === target ? null : c)),
+        4000,
+      );
+      return;
+    }
+    setConfirmClear(null);
+    setClearing(true);
+    setError(null);
+    try {
+      if (target === "session") {
+        await api.clearCurrentSessionIncidents();
+      } else {
+        await api.clearAllIncidents();
+      }
+      setPage(0);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Clear failed");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
+      {error && (
+        <div className="rounded-[5px] border border-sev-critical/50 px-3.5 py-2.5 text-[0.8125rem] text-sev-critical">
+          {error}
+        </div>
+      )}
+
       <Panel>
         <PanelHeader
           title={`${total} incident${total === 1 ? "" : "s"}`}
           action={
-            <a href={api.exportCsvUrl(severity || undefined, cls || undefined)}>
-              <Button size="sm" variant="outline">
-                <Download size={12} strokeWidth={1.25} />
-                <span className="hidden sm:inline">Export CSV</span>
-                <span className="sm:hidden">CSV</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!status?.running || clearing}
+                title={
+                  status?.running
+                    ? undefined
+                    : "No session is running"
+                }
+                onClick={() => void clear("session")}
+              >
+                <Trash2 size={12} strokeWidth={1.25} />
+                <span className="hidden sm:inline">
+                  {confirmClear === "session"
+                    ? "Confirm: clear this session"
+                    : "Clear current session"}
+                </span>
+                <span className="sm:hidden">
+                  {confirmClear === "session" ? "Confirm" : "Clear session"}
+                </span>
               </Button>
-            </a>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={clearing}
+                onClick={() => void clear("all")}
+              >
+                <Trash2 size={12} strokeWidth={1.25} />
+                <span className="hidden sm:inline">
+                  {confirmClear === "all"
+                    ? "Confirm: clear all history"
+                    : "Clear all history"}
+                </span>
+                <span className="sm:hidden">
+                  {confirmClear === "all" ? "Confirm" : "Clear all"}
+                </span>
+              </Button>
+              <a href={api.exportCsvUrl(severity || undefined, cls || undefined)}>
+                <Button size="sm" variant="outline">
+                  <Download size={12} strokeWidth={1.25} />
+                  <span className="hidden sm:inline">Export CSV</span>
+                  <span className="sm:hidden">CSV</span>
+                </Button>
+              </a>
+            </div>
           }
         />
 
@@ -177,16 +262,10 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {incident.snapshot ? (
-                          <img
-                            src={api.incidentSnapshotUrl(incident.id)}
-                            alt=""
-                            loading="lazy"
-                            className="h-9 w-14 rounded-[5px] border border-ash/70 object-cover"
-                          />
-                        ) : (
-                          <ImageOff size={14} strokeWidth={1.25} className="text-fog" />
-                        )}
+                        <IncidentThumb
+                          incident={incident}
+                          className="h-9 w-14 rounded-[5px] border border-ash/70 object-cover"
+                        />
                       </td>
                     </tr>
                   ))}
@@ -204,14 +283,10 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
                     aria-label={`Incident ${incident.id}, ${incident.label}, ${incident.severity} severity. Open details.`}
                     className="flex w-full gap-3 px-4 py-3.5 text-left transition-colors duration-200 ease-[var(--ease-focus)] active:bg-raised/60"
                   >
-                  {incident.snapshot && (
-                    <img
-                      src={api.incidentSnapshotUrl(incident.id)}
-                      alt=""
-                      loading="lazy"
-                      className="h-14 w-20 shrink-0 rounded-[5px] border border-ash/70 object-cover"
-                    />
-                  )}
+                  <IncidentThumb
+                    incident={incident}
+                    className="h-14 w-20 shrink-0 rounded-[5px] border border-ash/70 object-cover"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-bone">{incident.label}</span>
@@ -261,6 +336,29 @@ export function Incidents({ refreshKey }: { refreshKey: number }) {
         />
       )}
     </div>
+  );
+}
+
+/** A list-row thumbnail that falls back to the placeholder icon once the
+ * snapshot fails to load after retrying -- see SnapshotImage. */
+function IncidentThumb({
+  incident,
+  className,
+}: {
+  incident: Incident;
+  className: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (!incident.snapshot || failed) {
+    return <ImageOff size={14} strokeWidth={1.25} className="text-fog" />;
+  }
+  return (
+    <SnapshotImage
+      src={api.incidentSnapshotUrl(incident.id)}
+      alt=""
+      className={className}
+      onFailed={() => setFailed(true)}
+    />
   );
 }
 
@@ -375,7 +473,7 @@ function IncidentDrawer({
         </div>
 
         {incident.snapshot && (
-          <img
+          <SnapshotImage
             src={api.incidentSnapshotUrl(incident.id)}
             alt={`${incident.label} at the moment of confirmation`}
             className="w-full bg-pitch object-contain"

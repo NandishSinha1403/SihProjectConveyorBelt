@@ -24,15 +24,56 @@ URL a few minutes before anyone else does.
 
 ---
 
-## 1. API on Render
+## 1. Supabase — the incident history
+
+Do this first: the API will not start without it.
+
+Render's free instance has no persistent disk, so incidents and snapshots
+cannot live on it. They live in Supabase instead — Postgres for the rows, a
+Storage bucket for the snapshot JPEGs.
+
+1. **supabase.com → New project.** Free tier. Note the database password.
+2. **Storage → New bucket**, named `snapshots`, **private**. Leave it private:
+   the API hands out short-lived signed URLs rather than public ones.
+3. Collect three values:
+
+   | Setting | Where |
+   | --- | --- |
+   | `DATABASE_URL` | Project Settings → Database → **Connection pooling**, transaction mode (port **6543**) |
+   | `SUPABASE_URL` | Project Settings → API → Project URL |
+   | `SUPABASE_SERVICE_KEY` | Project Settings → API → `service_role` key |
+
+   Use the **pooler** connection string, not the direct one on port 5432. The
+   direct host is IPv6-only and Render's free tier cannot reach it.
+
+   The `service_role` key bypasses row-level security. It belongs in the
+   backend's environment and nowhere else — never in the frontend, never
+   committed.
+
+4. Nothing to create by hand: the tables and indexes are created on first boot.
+
+Free projects **pause after 7 days of inactivity** and need a manual unpause
+from the dashboard. That is a second thing to wake before a demo, alongside
+Render's spin-down.
+
+Migrating an existing local SQLite history:
+
+```bash
+python backend/scripts/migrate_to_supabase.py --dry-run
+python backend/scripts/migrate_to_supabase.py
+```
+
+## 2. API on Render
 
 The repo carries a blueprint, so there is nothing to configure by hand.
 
 1. **render.com → New → Blueprint**, point it at this repository.
 2. Render reads [`render.yaml`](../render.yaml) and creates `belt-sentinel-api`.
-3. Leave `CORS_ORIGINS` blank for now — you do not have the Vercel URL yet.
-4. Deploy. The first build takes a while: it installs PyTorch.
-5. Check `https://<your-service>.onrender.com/api/health` returns `{"status":"ok"}`.
+3. Fill in `DATABASE_URL`, `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` from step 1
+   — the blueprint declares them but cannot carry secrets.
+4. Leave `CORS_ORIGINS` blank for now — you do not have the Vercel URL yet.
+5. Deploy. The first build takes a while: it installs PyTorch.
+6. Check `https://<your-service>.onrender.com/api/health` returns `{"status":"ok"}`.
 
 Two things the blueprint does that matter:
 
@@ -47,7 +88,7 @@ Two things the blueprint does that matter:
 The trained weights (`backend/models/belt_v1.pt`, 18 MB) are committed, so the
 service boots with a real model rather than the mock.
 
-## 2. Frontend on Vercel
+## 3. Frontend on Vercel
 
 1. **vercel.com → Add New → Project**, import this repository.
 2. Vercel reads [`vercel.json`](../vercel.json); leave the framework preset alone.
@@ -61,7 +102,7 @@ service boots with a real model rather than the mock.
    becomes `wss://` automatically.
 4. Deploy.
 
-## 3. Close the CORS loop
+## 4. Close the CORS loop
 
 Back in Render → your service → Environment, set:
 
@@ -75,7 +116,7 @@ and an allow-list cannot name them all.
 
 Redeploy the Render service for it to take effect.
 
-## 4. Custom domain — `sih.nandish.dev`
+## 5. Custom domain — `sih.nandish.dev`
 
 At your DNS provider for `nandish.dev`, add one record:
 
@@ -157,8 +198,13 @@ deployment topology for this product; the cloud instance is a shop window.
 public internet, which on a mine network it will not be.
 
 **Uploaded videos are ephemeral.** Render's free tier has no persistent disk, so
-anything uploaded is lost on the next deploy or spin-down. The SQLite incident
-history goes with it. Attach a persistent disk (a paid feature) if that matters.
+anything uploaded is lost on the next deploy or spin-down. Re-upload the clip
+after a redeploy, or attach a persistent disk (a paid feature).
+
+The incident history is *not* ephemeral any more — that is exactly why it moved
+to Supabase (see [ADR 0006](adr/0006-supabase-holds-the-history.md)). Incidents
+and their snapshots survive redeploys, spin-downs, and moving the API to another
+host entirely.
 
 **Bandwidth.** MJPEG is not a compressed video stream; it is a rapid sequence of
 whole JPEGs. `MAX_STREAM_FPS` is set to 5 in the blueprint to keep this sane.

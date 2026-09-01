@@ -140,6 +140,15 @@ export const api = {
     }>(`/api/incidents?${q}`);
   },
   incidentSummary: () => request<IncidentSummary>("/api/incidents/summary"),
+  clearCurrentSessionIncidents: () =>
+    request<{ session_id: number; deleted: number; snapshots_removed: number }>(
+      "/api/incidents/session/current",
+      { method: "DELETE" },
+    ),
+  clearAllIncidents: () =>
+    request<{ deleted: number; snapshots_removed: number }>("/api/incidents", {
+      method: "DELETE",
+    }),
   incidentSnapshotUrl: (id: number) => apiUrl(`/api/incidents/${id}/snapshot`),
   exportCsvUrl: (severity?: string, cls?: string) => {
     const q = new URLSearchParams();

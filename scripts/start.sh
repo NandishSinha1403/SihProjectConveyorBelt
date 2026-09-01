@@ -50,6 +50,18 @@ if [ ! -f "$ROOT/backend/.env" ]; then
   warn "created backend/.env from the example"
 fi
 
+DB_URL=$(env_get DATABASE_URL "$ROOT/backend/.env")
+# A .env freshly copied from the example carries the <ref> placeholder, which
+# is not empty but is not a connection string either.
+case "$DB_URL" in ""|*"<ref>"*)
+  fail "DATABASE_URL is not set in backend/.env"
+  note "The incident history lives in Supabase; the backend will not start"
+  note "without it. See docs/DEPLOYMENT.md section 1 for the three values."
+  exit 1
+  ;;
+esac
+ok "database: Supabase configured"
+
 DETECTOR=$(env_get DETECTOR "$ROOT/backend/.env")
 if [ "$DETECTOR" = "yolo" ]; then
   MODEL=$(env_get MODEL_PATH "$ROOT/backend/.env")

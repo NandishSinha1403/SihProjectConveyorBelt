@@ -37,6 +37,19 @@ services:
       # CLAHE costs a few ms per frame that this instance does not have spare.
       - key: ENABLE_CLAHE
         value: "false"
+      # Supabase holds the incident history and the snapshot JPEGs. This box
+      # has no persistent disk, so without them both are wiped by every deploy
+      # and every spin-down. DATABASE_URL must be the transaction pooler host
+      # (port 6543): the direct one is IPv6-only and the free tier is not.
+      # SUPABASE_SERVICE_KEY is a full-access credential -- secret, never synced.
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: snapshots
       # The production frontend origins. A custom domain is NOT covered by the
       # preview regex below, so it has to be named here explicitly.
       #   https://sih.nandish.dev,https://<project>.vercel.app
