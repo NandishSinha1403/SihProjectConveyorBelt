@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { playAlarm, primeAudio } from "@/lib/chime";
 import type { Incident } from "@/lib/types";
 
+// Legacy key, kept through the CARRY rename -- renaming it would reset
+// every operator's saved alarm preference for no visible gain.
 const STORAGE_KEY = "belt-sentinel:alarm";
 
 /**

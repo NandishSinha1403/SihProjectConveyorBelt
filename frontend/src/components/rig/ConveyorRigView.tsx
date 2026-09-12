@@ -106,9 +106,9 @@ export default function ConveyorRigView() {
       >
         <div className="stage-note">Drag to orbit · scroll to zoom · right-drag to pan</div>
         <div className="stage-toolbar">
-          <Link to="/" className="rig-back" title="Back to Belt Sentinel">
+          <Link to="/" className="rig-back" title="Back to CARRY">
             <ArrowLeft size={13} strokeWidth={1.5} />
-            Belt Sentinel
+            C.A.R.R.Y
           </Link>
           <button
             type="button"

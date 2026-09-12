@@ -51,38 +51,17 @@ export const SEVERITY_META: Record<
   },
 };
 
-/** Weight each severity contributes to the belt health deduction. */
-const HEALTH_WEIGHT: Record<Severity, number> = {
-  info: 0,
-  low: 1,
-  medium: 4,
-  high: 12,
-  critical: 30,
-};
-
 /**
- * A 0-100 belt health index from the severity mix seen so far.
+ * Score band to the severity token that colours it.
  *
- * This is an interim heuristic for the vision module alone. The predictive
- * phase replaces it with a model that also weighs defect growth rate and
- * sensor anomalies -- see the architecture notes in the README.
+ * The bands themselves are computed in `backend/app/analytics/reliability.py`;
+ * this is only the mapping from a band's name to how it is drawn, so the
+ * gauge on the Monitor tab and the verdict on Analytics tint identically.
  */
-export function beltHealth(bySeverity: Partial<Record<Severity, number>>): number {
-  const penalty = (Object.entries(bySeverity) as [Severity, number][]).reduce(
-    (sum, [sev, n]) => sum + (HEALTH_WEIGHT[sev] ?? 0) * n,
-    0,
-  );
-  // Diminishing returns: the tenth scratch matters far less than the first.
-  // The divisor is tuned so that a shift with a couple of critical defects
-  // reads "Degraded" rather than bottoming out -- a gauge that pins at zero
-  // and stays there stops carrying information.
-  return Math.max(0, Math.round(100 * Math.exp(-penalty / 120)));
-}
-
-export function healthLabel(score: number): { text: string; severity: Severity } {
-  if (score >= 85) return { text: "Healthy", severity: "info" };
-  if (score >= 65) return { text: "Monitor", severity: "low" };
-  if (score >= 40) return { text: "Degraded", severity: "medium" };
-  if (score >= 20) return { text: "At Risk", severity: "high" };
-  return { text: "Critical", severity: "critical" };
-}
+export const BAND_SEVERITY: Record<string, Severity> = {
+  Healthy: "info",
+  Monitor: "low",
+  Degraded: "medium",
+  "At Risk": "high",
+  Critical: "critical",
+};

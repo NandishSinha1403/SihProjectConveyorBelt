@@ -3,11 +3,11 @@ import { Link } from "@/components/Router";
 import { Bell, BellOff, Keyboard, Play, Square } from "lucide-react";
 import { api } from "@/lib/api";
 import type { EventSocketState } from "@/hooks/useEventSocket";
-import type { IncidentSummary } from "@/lib/types";
+import type { ReliabilityIndex } from "@/lib/types";
 import { VideoPanel } from "@/components/VideoPanel";
 import { StatsBar } from "@/components/StatsBar";
 import { AlertFeed } from "@/components/AlertFeed";
-import { BeltHealth } from "@/components/BeltHealth";
+import { ReliabilityPanel } from "@/components/ReliabilityPanel";
 import { Button, EmptyState, Panel } from "@/components/ui/primitives";
 import { useHotkeys, type Hotkey } from "@/hooks/useHotkeys";
 import type { useAlarm } from "@/hooks/useAlarm";
@@ -20,7 +20,7 @@ export function LiveMonitor({
   alarm: ReturnType<typeof useAlarm>;
 }) {
   const { status, detections, alerts, clearAlerts, restoreAlerts } = socket;
-  const [summary, setSummary] = useState<IncidentSummary | null>(null);
+  const [reliability, setReliability] = useState<ReliabilityIndex | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
@@ -29,14 +29,18 @@ export function LiveMonitor({
 
   const running = Boolean(status?.running);
 
-  // Refresh aggregates whenever an incident opens or closes, and on a slow
+  // Refresh the index whenever an incident opens or closes, and on a slow
   // heartbeat so a long quiet stream still keeps the gauge honest.
+  //
+  // Deliberately the same endpoint the Analytics tab reads, over the same
+  // eight-hour default: two surfaces reporting different numbers for one belt
+  // is the failure this replaced.
   useEffect(() => {
     let cancelled = false;
     const load = () =>
       api
-        .incidentSummary()
-        .then((s) => !cancelled && setSummary(s))
+        .reliability({ hours: 8, sessionId: null })
+        .then((r) => !cancelled && setReliability(r))
         .catch(() => undefined);
     load();
     const timer = window.setInterval(load, 15_000);
@@ -242,7 +246,7 @@ export function LiveMonitor({
           onRestore={restoreAlerts}
           className="min-h-[340px] xl:h-[calc(100dvh-30rem)]"
         />
-        <BeltHealth summary={summary} />
+        <ReliabilityPanel index={reliability} />
       </div>
     </div>
   );

@@ -41,8 +41,9 @@ async def summary(
 ) -> dict:
     """Aggregate counts plus the live session's open incidents.
 
-    Defaults to an eight-hour window -- one shift -- because the belt health
-    gauge is a statement about current condition, not lifetime history.
+    Defaults to an eight-hour window -- one shift -- because condition is a
+    statement about the belt now, not lifetime history. The dashboard reads
+    ``/api/analytics/reliability`` instead; this stays as a public aggregate.
     """
     data = await run_in_threadpool(get_db().summary, hours)
     session = manager.session

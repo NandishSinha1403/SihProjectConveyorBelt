@@ -23,10 +23,14 @@ export function wsUrl(path: string): string {
 
 import type {
   DeviceInfo,
+  GeometryResponse,
   Incident,
   IncidentSummary,
+  ReliabilityIndex,
   RuntimeSettings,
+  SessionRow,
   StreamStatus,
+  TimeseriesResponse,
   VideoInfo,
 } from "./types";
 
@@ -53,6 +57,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+}
+
+/**
+ * Which slice of history an analytics call is about: a look-back in hours, or
+ * one specific run. A session is the more specific question, so when both are
+ * present the session wins -- the backend applies the same rule.
+ */
+export type AnalyticsWindow = { hours: number | null; sessionId: number | null };
+
+function analyticsQuery({ hours, sessionId }: AnalyticsWindow): string {
+  const q = new URLSearchParams();
+  if (sessionId !== null) q.set("session_id", String(sessionId));
+  else if (hours !== null) q.set("hours", String(hours));
+  return q.toString();
 }
 
 export const api = {
@@ -156,6 +174,20 @@ export const api = {
     if (cls) q.set("cls", cls);
     return apiUrl(`/api/incidents/export.csv?${q}`);
   },
+
+  // Analytics. `session_id` narrows to a single run and wins over `hours`.
+  listSessions: (limit = 50, offset = 0) =>
+    request<{ items: SessionRow[]; limit: number; offset: number; live_id: number | null }>(
+      `/api/analytics/sessions?limit=${limit}&offset=${offset}`,
+    ),
+  reliability: (window: AnalyticsWindow) =>
+    request<ReliabilityIndex>(`/api/analytics/reliability?${analyticsQuery(window)}`),
+  timeseries: (window: AnalyticsWindow, buckets = 48) =>
+    request<TimeseriesResponse>(
+      `/api/analytics/timeseries?${analyticsQuery(window)}&buckets=${buckets}`,
+    ),
+  geometry: (window: AnalyticsWindow) =>
+    request<GeometryResponse>(`/api/analytics/geometry?${analyticsQuery(window)}`),
 
   // Settings
   getSettings: () => request<RuntimeSettings>("/api/settings"),

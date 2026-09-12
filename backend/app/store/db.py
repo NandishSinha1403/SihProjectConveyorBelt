@@ -196,12 +196,17 @@ class Database:
         return self._row_to_incident(row) if row else None
 
     def summary(self, hours: float | None = None) -> dict:
-        """Aggregates for the dashboard header and the belt-health gauge.
+        """Class and severity aggregates over a window.
 
-        ``hours`` restricts the window. Belt health is a statement about the
-        belt's condition *now*, so the gauge asks for a recent window: an
-        all-time count would only ever ratchet downwards and would still be
-        reporting last month's repaired tear as if it were live.
+        ``hours`` restricts it. Condition is a statement about the belt *now*,
+        so callers ask for a recent window: an all-time count would only ever
+        ratchet downwards and would still be reporting last month's repaired
+        tear as if it were live.
+
+        The dashboard no longer reads this -- both the Monitor gauge and the
+        Analytics verdict come from ``/api/analytics/reliability``, which counts
+        distinct defects rather than rows (docs/adr/0009). Kept because it is a
+        public endpoint and a reasonable thing to ask for.
         """
         where, params = "", []
         if hours is not None:
@@ -228,6 +233,121 @@ class Database:
                          for r in by_class},
             "by_severity": {r["severity"]: int(r["n"]) for r in by_severity},
         }
+
+    # -- analytics (read-only) ----------------------------------------------
+    #
+    # Everything below only ever SELECTs. The analytics surface reports on the
+    # record; it must never be able to change it.
+
+    @staticmethod
+    def _window(hours: float | None, session_id: int | None,
+                column: str = "opened_at") -> tuple[str, list]:
+        """Shared WHERE clause for a look-back window or a single session."""
+        clauses, params = [], []
+        if session_id is not None:
+            clauses.append("session_id = %s")
+            params.append(session_id)
+        elif hours is not None:
+            clauses.append(f"{column} >= %s")
+            params.append(time.time() - hours * 3600)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        return where, params
+
+    def list_sessions(self, limit: int = 50, offset: int = 0) -> list[dict]:
+        """Runs, newest first, each with its incident tally.
+
+        A LEFT JOIN rather than an inner one: a session that found nothing is
+        still a session that happened, and dropping it would quietly overstate
+        the defect rate across the ledger.
+        """
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                "SELECT s.*, COALESCE(i.n, 0) AS incident_count,"
+                "       COALESCE(i.critical, 0) AS critical_count"
+                "  FROM sessions s"
+                "  LEFT JOIN (SELECT session_id, COUNT(*) AS n,"
+                "                    COUNT(*) FILTER (WHERE severity = 'critical')"
+                "                      AS critical"
+                "               FROM incidents GROUP BY session_id) i"
+                "    ON i.session_id = s.id"
+                " ORDER BY s.started_at DESC LIMIT %s OFFSET %s",
+                (limit, offset),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_session(self, session_id: int) -> dict | None:
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM sessions WHERE id = %s", (session_id,)).fetchone()
+        return dict(row) if row else None
+
+    def analytics_rows(self, hours: float | None = None,
+                       session_id: int | None = None,
+                       limit: int = 20000) -> list[dict]:
+        """Incident rows with their boxes parsed, for scoring and geometry.
+
+        Deduplication and geometry both need the raw ``box``, which lives as
+        JSON in a TEXT column (see docs/adr/0006 for why it was left that way),
+        so this reduces in Python rather than in SQL. Volumes are small -- the
+        pipeline opens a handful of incidents a minute -- but the limit is here
+        so a pathological history cannot pull the API box over.
+        """
+        where, params = self._window(hours, session_id)
+        params.append(limit)
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                f"SELECT id, session_id, cls, label, severity, confidence,"
+                f" opened_at, closed_at, duration, box FROM incidents {where}"
+                f" ORDER BY opened_at DESC LIMIT %s", params,
+            ).fetchall()
+        return [self._row_to_incident(r) for r in rows]
+
+    def frame_totals(self, hours: float | None = None,
+                     session_id: int | None = None) -> dict:
+        """Frame accounting across the sessions in the window.
+
+        This is what inspection coverage is computed from: frames that arrived
+        against frames the detector actually got to look at.
+        """
+        # Not _window(): that names the incidents table's `session_id` column,
+        # while a session identifies itself as `id`.
+        if session_id is not None:
+            where, params = "WHERE id = %s", [session_id]
+        elif hours is not None:
+            where, params = "WHERE started_at >= %s", [time.time() - hours * 3600]
+        else:
+            where, params = "", []
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                f"SELECT COALESCE(SUM(frames_read), 0) AS frames_read,"
+                f" COALESCE(SUM(frames_processed), 0) AS frames_processed,"
+                f" COALESCE(SUM(frames_skipped), 0) AS frames_skipped,"
+                f" COUNT(*) AS sessions,"
+                f" MIN(started_at) AS first_started,"
+                f" MAX(COALESCE(ended_at, started_at)) AS last_ended"
+                f" FROM sessions {where}", params,
+            ).fetchone()
+        return dict(row) if row else {}
+
+    def incident_buckets(self, bucket_seconds: int, hours: float | None = None,
+                         session_id: int | None = None) -> list[dict]:
+        """Incident counts per time bucket per severity.
+
+        Aggregated in SQL rather than by shipping every row to the browser and
+        counting there: a long history is thousands of rows, and the chart only
+        ever draws the totals.
+        """
+        where, params = self._window(hours, session_id)
+        bucket = max(1, int(bucket_seconds))
+        params = [bucket, bucket, *params]
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                f"SELECT FLOOR(opened_at / %s) * %s AS bucket, severity, cls,"
+                f" COUNT(*) AS n FROM incidents {where}"
+                f" GROUP BY bucket, severity, cls ORDER BY bucket", params,
+            ).fetchall()
+        return [{"bucket": float(r["bucket"]), "severity": r["severity"],
+                 "cls": r["cls"], "n": int(r["n"])} for r in rows]
 
     @staticmethod
     def _row_to_incident(row: dict) -> dict:

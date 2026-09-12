@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import incidents, settings_api, sources, stream, ws
+from .api import analytics, incidents, settings_api, sources, stream, ws
 from .bus import bus
 from .config import settings
 from .pipeline.session import manager
@@ -71,6 +71,7 @@ app.add_middleware(
 app.include_router(sources.router)
 app.include_router(stream.router)
 app.include_router(incidents.router)
+app.include_router(analytics.router)
 app.include_router(settings_api.router)
 app.include_router(ws.router)
 

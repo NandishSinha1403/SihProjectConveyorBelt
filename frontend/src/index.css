@@ -1,5 +1,6 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/eb-garamond";
 @import "@fontsource/ibm-plex-mono";
 @import "tailwindcss";
 
@@ -64,6 +65,11 @@
   /* Brand/display voice only -- wordmark, panel titles, the settings panel's
      item labels. Never body copy or data. */
   --font-display: "Fraunces Variable", "Fraunces", ui-serif, Georgia, serif;
+  /* The wordmark alone. Split from --font-display because the mark is the one
+     piece of type that has to hold at 8rem in the footer and at 1rem inside
+     the header, and Fraunces' optical sizing pulls in a direction the mark
+     does not want. Nothing but C.A.R.R.Y and its expansion uses this. */
+  --font-brand: "EB Garamond Variable", "EB Garamond", ui-serif, Georgia, serif;
 
   /* Fixed rem scale. Product UI is read at consistent DPI, and a fluid
      heading that shrinks inside a rail looks worse, not better. */

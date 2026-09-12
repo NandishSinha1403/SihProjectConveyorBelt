@@ -118,3 +118,112 @@ export type WsMessage =
   | { type: "incident.opened"; data: Incident }
   | { type: "incident.updated"; data: Incident }
   | { type: "incident.closed"; data: Incident };
+
+/* -- Analytics ------------------------------------------------------------
+   Shapes returned by /api/analytics/*. The corroboration term is absent from
+   every backend payload on purpose: the ESP32 node writes to a separate
+   Supabase project that only the browser holds credentials for, so the two
+   channels are joined client-side in lib/analytics.ts.
+------------------------------------------------------------------------- */
+
+export interface SessionRow {
+  id: number;
+  source_uri: string;
+  source_kind: string;
+  label: string;
+  detector: string;
+  started_at: number;
+  ended_at: number | null;
+  frames_read: number;
+  frames_processed: number;
+  frames_skipped: number;
+  incident_count: number;
+  critical_count: number;
+  is_live: boolean;
+}
+
+/** One physical defect, after repeat sightings across belt revolutions merge. */
+export interface DistinctDefect {
+  cls: string;
+  label: string;
+  severity: Severity;
+  confidence: number;
+  /** Position across belt width, 0..1. Null when the row had no usable box. */
+  lateral: number | null;
+  /** Fraction of frame area. */
+  area: number;
+  /** How many incident rows resolved to this one defect. */
+  sightings: number;
+  first_seen: number;
+  last_seen: number;
+  penalty: number;
+  incident_ids: number[];
+}
+
+export interface ReliabilityIndex {
+  condition: number;
+  band: string;
+  penalty: number;
+  defects_per_hour: number;
+  /** Null when no frames were read — which is not the same as 0%. */
+  coverage: number | null;
+  /** Positive means improving. Null when there is nothing to compare. */
+  trend: number | null;
+  observed_hours: number;
+  incident_rows: number;
+  distinct_defects: number;
+  distinct_by_severity: Partial<Record<Severity, number>>;
+  defects: DistinctDefect[];
+  corroboration: null;
+  window: {
+    start: number;
+    end: number;
+    hours: number | null;
+    session_id: number | null;
+  };
+  frames: {
+    frames_read: number;
+    frames_processed: number;
+    frames_skipped: number;
+  };
+  sessions: number;
+}
+
+export interface TimeseriesBucket {
+  bucket: number;
+  severity: Severity;
+  cls: string;
+  n: number;
+}
+
+export interface TimeseriesResponse {
+  start: number;
+  end: number;
+  bucket_seconds: number;
+  items: TimeseriesBucket[];
+  classes: Record<string, string>;
+}
+
+export interface GeometryPoint {
+  id: number;
+  cls: string;
+  severity: Severity;
+  confidence: number;
+  lateral: number;
+  area: number;
+  aspect: number;
+  opened_at: number;
+}
+
+export interface GeometryResponse {
+  measured: number;
+  total_rows: number;
+  lateral_bins: number;
+  lateral: number[];
+  area_edges: number[];
+  area: number[];
+  longitudinal: number;
+  lateral_mean: number | null;
+  lateral_stdev: number | null;
+  scatter: GeometryPoint[];
+}
