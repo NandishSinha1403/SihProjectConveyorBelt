@@ -57,16 +57,19 @@ After merging, **2,844 annotations across 1,573 images**:
 
 Two things follow, and both are worth stating plainly rather than papering over:
 
-**1. Only three classes are trained.** `scratch`, `crack` and `joint_damage`
-have zero examples in the public data, so `merge_datasets.py` **excludes them
+**1. Only three classes are trained from public data.** `scratch`, `crack` and
+`joint_damage` have zero examples in it, so `merge_datasets.py` **excludes them
 from the emitted dataset**. A model advertising a class it was never shown
 cannot predict it, and a dead class in the API and dashboard looks like a
 capability the system does not have.
 
-`joint_damage` is the deliberate exception: it is *derived at runtime*, not
-trained. `app/pipeline/events.py` promotes a detected `belt_joint` to
-`joint_damage` when a tear or hole sits substantially inside it. That is a
-genuine inference from two trained classes, not a placeholder.
+`joint_damage` — the belt joint rupture — is **trained, not derived**. An
+earlier version inferred it geometrically, by testing whether a tear or hole
+overlapped a detected joint band; that rule went through three formulations
+before being replaced by a trained class, and the geometry was deleted. See
+[ADR 0002](adr/0002-joint-presence-is-not-an-incident.md). It carries no
+instances in the public data either, so it comes from your own labelled rig
+footage — which is what `belt_v2` is.
 
 To get `scratch` and `crack`, label them yourself — a few hundred frames from
 your own belt footage is enough to add a class, and `import_dataset.py` will

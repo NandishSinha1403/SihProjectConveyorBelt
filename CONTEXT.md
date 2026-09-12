@@ -22,7 +22,13 @@ _Avoid_: seam, weld, splice, join
 **Joint rupture**:
 A belt joint that has begun to come apart, visible as an opening at the belt
 edge where the bonded ends have separated. The failure mode this project exists
-to catch, and the only joint-related event.
+to catch, and the only joint-related event. A *trained* detector class, not
+something inferred from a tear overlapping a joint — see
+[ADR 0002](docs/adr/0002-joint-presence-is-not-an-incident.md).
+The class identifier in code and datasets is `joint_damage`, kept for schema
+compatibility; the operator-facing label is "Belt Joint Rupture". Prose uses
+"joint rupture", so the identifier is expected to disagree with the prose and
+should not be renamed to match it.
 _Avoid_: joint damage, joint failure, split joint
 
 **Tear**:

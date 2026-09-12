@@ -166,7 +166,9 @@ backend/     FastAPI service — sources, pipeline, incident store, REST + WebSo
 frontend/    React + Vite + Tailwind dashboard
 training/    Frame extraction, labelling tool, dataset splitting, training, evaluation
 docs/        Camera integration, datasets, deployment, troubleshooting, model report
+docs/adr/    Architecture decision records, indexed in docs/adr/README.md
 DESIGN.md    The dashboard's design system — why the tokens in frontend/src/index.css are what they are
+CONTEXT.md   The project's vocabulary — the words the code, docs and datasets all use
 ```
 
 ### Documentation
@@ -181,7 +183,7 @@ DESIGN.md    The dashboard's design system — why the tokens in frontend/src/in
 | [`docs/adr/0009`](docs/adr/0009-reliability-yield-counts-defects-not-sightings.md) | Why the health score counts distinct defects rather than incident rows |
 | [`DESIGN.md`](DESIGN.md) | Colour, type and spacing tokens, and the severity palette's known drift |
 | [`CONTEXT.md`](CONTEXT.md) | The project's vocabulary — what a defect, an incident and a joint rupture each mean |
-| [`docs/adr/`](docs/adr/) | Why the load-bearing decisions were made the way they were |
+| [`docs/adr/`](docs/adr/README.md) | Indexed ADRs — why the load-bearing decisions were made the way they were, and what each one costs |
 
 ---
 

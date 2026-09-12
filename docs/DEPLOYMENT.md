@@ -69,6 +69,10 @@ The repo carries a blueprint, so there is nothing to configure by hand.
 
 1. **render.com → New → Blueprint**, point it at this repository.
 2. Render reads [`render.yaml`](../render.yaml) and creates `belt-sentinel-api`.
+
+   > That name predates the CARRY rename and is left alone deliberately: it is
+   > the hostname already in circulation, and renaming the service would break
+   > every link that points at it. Do not "fix" it in the blueprint.
 3. Fill in `DATABASE_URL`, `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` from step 1
    — the blueprint declares them but cannot carry secrets.
 4. Leave `CORS_ORIGINS` blank for now — you do not have the Vercel URL yet.
@@ -85,8 +89,14 @@ Two things the blueprint does that matter:
   container images do not ship, so the normal package fails at import on a
   server. Nothing in this project draws to a window.
 
-The trained weights (`backend/models/belt_v1.pt`, 18 MB) are committed, so the
-service boots with a real model rather than the mock.
+The trained weights are committed — `belt_v1.pt` and `belt_v2.pt`, about 18 MB
+each — so the service boots with a real model rather than the mock. The
+blueprint selects `belt_v1`, the generalist trained on public industrial belt
+imagery, because a hosted instance has no idea whose belt it will be shown.
+`belt_v2` is specialised to this project's prototype rig and is the right choice
+for a local demonstration; switch with `MODEL_PATH`, and see
+[ADR 0003](adr/0003-two-models-one-specialised.md) for why they are not merged
+into one model.
 
 ## 3. Frontend on Vercel
 
@@ -103,10 +113,16 @@ service boots with a real model rather than the mock.
    No trailing slash on `VITE_API_BASE`. The WebSocket URL is derived from it,
    so `https://` becomes `wss://` automatically.
 
-   The two `VITE_SUPABASE_*` values feed the 3D Model tab, and point at the
-   **rig-telemetry** Supabase project — a different one from the incident
-   history in step 1. Omit them and the tab still renders the model, but reads
-   `OFFLINE` forever.
+   The two `VITE_SUPABASE_*` values point at the **rig-telemetry** Supabase
+   project — a different one from the incident history in step 1. Two tabs read
+   them: the 3D Model tab for live motion, and the Analytics tab, which replays
+   the node's history to corroborate camera-found ruptures against the optical
+   sensor.
+
+   Omit them and both tabs still render. The 3D Model reads `OFFLINE` forever,
+   and Analytics reports **"no sensor data"** — which is deliberately a
+   different statement from 0% corroboration, since one means the instruments
+   disagreed and the other means only one instrument was present.
 
    > **Never** use `SUPABASE_SERVICE_KEY` here. Anything prefixed `VITE_` is
    > compiled into the JavaScript bundle and readable by every visitor; the

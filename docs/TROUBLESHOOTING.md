@@ -132,11 +132,16 @@ preprocessing* off in Settings, which takes effect immediately on the running
 stream without a restart. If you want the contrast enhancement, apply CLAHE
 during training too so the model sees the same distribution it is served.
 
-**Second thing to check: the model only knows three classes.** `belt_v1.pt` was
-trained on `tear`, `hole` and `belt_joint`. `scratch` and `crack` exist in the
-class vocabulary but no public training data for them exists, so the model
-cannot emit them — see [DATASETS.md](DATASETS.md). `joint_damage` is derived at
-runtime from a `belt_joint` that damage touches, not predicted directly.
+**Second thing to check: which classes your weights actually know.**
+`belt_v1.pt` was trained on `tear`, `hole` and `belt_joint` only. `scratch` and
+`crack` exist in the class vocabulary but no public training data for them
+exists, so the model cannot emit them — see [DATASETS.md](DATASETS.md).
+
+`joint_damage` — the rupture, and the headline of the problem statement — is a
+**trained class, not inferred from geometry**, so `belt_v1.pt` cannot emit it
+either. If you are watching the rig and expecting ruptures, you want
+`MODEL_PATH=models/belt_v2.pt`; `belt_v1` finds damage in only 7 of 29
+photographs of that rig ([ADR 0003](adr/0003-two-models-one-specialised.md)).
 
 **Third: the confidence threshold.** `CONF_THRESHOLD` defaults to 0.35,
 deliberately below the paper's 0.50 so early wear is caught. Raising it trades
@@ -232,6 +237,91 @@ The browser console shows CORS errors, or the WebSocket never connects.
   [DEPLOYMENT.md](DEPLOYMENT.md).
 - In local development, leave `VITE_API_BASE` unset so paths stay relative and
   Vite's proxy handles them.
+
+---
+
+## The Analytics tab reads "—" or "No data" where a number should be
+
+Four figures on that page can decline to answer, and **each one is a deliberate
+refusal, not a failure**. The distinction matters: an unknown and a zero mean
+opposite things about a belt, and the page will not print one when it means the
+other.
+
+| Reads | Means | Where it is decided |
+| --- | --- | --- |
+| Coverage `—` | No frames read in the window at all | `coverage_score()` returns `None` when `frames_read <= 0` |
+| Trend `no trend` | Not enough window, or not enough defects, to compare halves | `trend_delta()` |
+| Corroboration `No data` | The belt-monitor node reported nothing | `noSensorData` in `lib/analytics.ts` |
+| Belt running `—` | No vibration trace, so duty cycle is unknown | same file |
+
+**Trend is the one people ask about most.** It stays blank until the window
+spans at least **10 minutes** (`MIN_TREND_SPAN_SECONDS`) *and* holds at least
+two distinct defects *and* both halves of the window contain one. On a
+forty-second demo clip you will never see a trend, and that is correct — over
+that span the two halves differ by which defect happened to come past the lens
+first, which is not deterioration however large the number looks.
+
+**Corroboration `No data` is not 0%.** `No data` means only the camera was
+present. `0%` means both instruments were present and disagreed — a far more
+serious statement. If you expect sensor data and see `No data`, the cause is
+almost always that `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are unset or
+wrong in `frontend/.env`; work through *The 3D Model tab says OFFLINE* below,
+since both features read the same project through the same client.
+
+Note that only **rupture-class** defects are scored for corroboration — an LDR
+array detects light coming through the belt, and a scratch does not let light
+through. A run full of scratches will show `0 of 0` and no percentage, which is
+the honest answer rather than a flattering one.
+
+---
+
+## The defect count on Analytics disagrees with the incident count
+
+This is the intended behaviour, and it is the whole point of the page.
+
+The Live Monitor counts **incidents** — one row per confirmed sighting. Analytics
+counts **distinct defects** — physical damage, after the rows describing the same
+tear on successive belt revolutions have been merged. A belt is a loop, so one
+tear opens a fresh incident every time it comes round: twelve incidents and one
+defect is a perfectly consistent pair of numbers describing one tear seen twelve
+times.
+
+Two sightings merge when their lateral centres sit within `LATERAL_TOLERANCE`
+(8% of belt width), neither is more than `AREA_RATIO_TOLERANCE` (2.5×) the area
+of the other, and **their open intervals do not overlap** — a single physical
+defect cannot be in two places at once, so two simultaneous tears at the same
+lateral position stay separate however alike they look.
+
+If the merge looks wrong for your belt, those constants are at the top of
+[`backend/app/analytics/reliability.py`](../backend/app/analytics/reliability.py).
+The reasoning is in [ADR 0009](adr/0009-reliability-yield-counts-defects-not-sightings.md);
+read it before changing them, because counting rows instead of defects measures
+belt speed as much as belt damage.
+
+---
+
+## Analytics says the API is up but the panels are empty
+
+The page surfaces this explicitly rather than rendering zeros. Distinguish two
+cases:
+
+- **The window genuinely holds no runs.** `GET /api/analytics/sessions` returns
+  an empty ledger. Widen the window, or check that a session has actually been
+  recorded — sessions are written on start and completed on stop.
+- **The API cannot reach Supabase.** The incident history lives in Postgres, so
+  every analytics endpoint needs `DATABASE_URL`. Check it directly:
+
+  ```bash
+  curl -s localhost:8000/api/analytics/reliability?hours=8 | python3 -m json.tool
+  ```
+
+  A 500 here with a healthy `/api/health` points at the database connection, not
+  the analytics code. On Render, confirm you used the **transaction pooler**
+  string on port 6543 — the direct host on 5432 is IPv6-only and the free tier
+  cannot route to it.
+
+Remember the free Supabase project **pauses after 7 days of inactivity**, which
+presents exactly as this: a healthy API and empty analytics.
 
 ---
 

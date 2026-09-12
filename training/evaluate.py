@@ -227,7 +227,13 @@ def main() -> int:
     add = lines.append
     add("# Model Evaluation — Conveyor Belt Damage Detection\n")
     add(f"Weights: `{weights.name}`  ")
-    add(f"Dataset: `{args.data}`  ")
+    # Relative to the repo root: this report is committed, and an absolute
+    # path bakes one machine's home directory into a file everyone else reads.
+    try:
+        data_shown = Path(args.data).resolve().relative_to(ROOT.parent)
+    except ValueError:
+        data_shown = Path(args.data)
+    add(f"Dataset: `{data_shown}`  ")
     add(f"Device: `{device}`  ")
     add(f"Generated: {time.strftime('%Y-%m-%d %H:%M')}\n")
 
