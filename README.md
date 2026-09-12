@@ -1,12 +1,15 @@
-# Belt Sentinel
+# C.A.R.R.Y
+
+**Conveyor Anomaly Recognition & Reliability Yield** — by Team Unplayed.
 
 **Real-time AI vision monitoring for conveyor belt damage and joint rupture in
 iron ore mining.**
 
 A camera watches the belt. A YOLO detector finds tears, holes and joint
 ruptures. A control-room dashboard shows the annotated feed, a live alert rail,
-a belt health index, and a searchable incident history with photographic
-evidence.
+a Reliability Yield index, and a searchable incident history with photographic
+evidence. An Analytics tab reads the whole history back — including the ESP32
+rig's own sensor trace — and reports a single auditable condition index.
 
 Built for the Smart India Hackathon problem statement *"Belt Joint Rupture and
 Conveyor Belt Damages in Iron Ore Mining Industry"*. This repository is **Phase
@@ -25,6 +28,7 @@ analytics and digital twin attach without rework.
 | [The real-time guarantee](#the-real-time-guarantee) | Why a video file is an honest stand-in for a camera |
 | [From detections to incidents](#from-detections-to-incidents) | Turning thousands of boxes into a handful of events |
 | [Models](#models) | `belt_v1` and `belt_v2`, and when to use each |
+| [Analytics](#analytics) | Reliability Yield, and both sensor channels on one axis |
 | [The 3D Model tab](#the-3d-model-tab) | The sensor rig, rendered and fed by live hardware |
 | [Training on your own belt](#training-on-your-own-belt) | The labelling and training toolchain |
 | [Configuration](#configuration) · [API](#api) · [Deployment](#deployment) | Reference |
@@ -174,6 +178,7 @@ DESIGN.md    The dashboard's design system — why the tokens in frontend/src/in
 | [`docs/DATASETS.md`](docs/DATASETS.md) | Public data contents, class mapping, attribution |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Vercel + Render, and the CORS loop |
 | [`docs/model_report.md`](docs/model_report.md) | Measured metrics for the shipped weights |
+| [`docs/adr/0009`](docs/adr/0009-reliability-yield-counts-defects-not-sightings.md) | Why the health score counts distinct defects rather than incident rows |
 | [`DESIGN.md`](DESIGN.md) | Colour, type and spacing tokens, and the severity palette's known drift |
 | [`CONTEXT.md`](CONTEXT.md) | The project's vocabulary — what a defect, an incident and a joint rupture each mean |
 | [`docs/adr/`](docs/adr/) | Why the load-bearing decisions were made the way they were |
@@ -265,6 +270,74 @@ problems.
 `belt_v2` is `yolo11s` warm-started from `belt_v1.pt` rather than from COCO
 weights — the belt-damage features are already present, and adapting them
 converges far faster on a few hundred images than relearning would.
+
+---
+
+## Analytics
+
+The diagnostics surface. Everything else in the dashboard reports on *now*;
+this reads the whole history back and says what it means.
+
+It is the only page that reads **both** Supabase projects. The backend supplies
+the vision channel from the incident database; the browser fetches the ESP32
+node's history directly, because the rig writes to a separate project only the
+frontend holds credentials for. They are joined in
+[`lib/analytics.ts`](frontend/src/lib/analytics.ts) — legitimate because both
+instruments watch the same physical belt.
+
+**Reliability Yield** is the headline, and it is four published figures rather
+than one opaque number:
+
+| | |
+| --- | --- |
+| **Condition** | 0–100 from *distinct physical defects*, weighted by severity, confidence, size and persistence |
+| **Coverage** | `frames_processed / frames_read` — how much of the belt was actually inspected |
+| **Corroboration** | Share of rupture-class defects the optical sensor independently flagged |
+| **Trend** | Change in condition across the window |
+
+Condition counts **defects, not sightings**. A belt is a loop, so one tear
+returns past the camera every revolution and opens a fresh incident row each
+time; the old score penalised the belt once per revolution, which made it partly
+a measure of belt speed. See [`docs/adr/0009`](docs/adr/0009-reliability-yield-counts-defects-not-sightings.md).
+Both counts are always shown side by side — the gap between them *is* the
+correction, and hiding it would make the score unauditable.
+
+What the rest of the page shows, and what it is derived from:
+
+| Panel | Reads |
+| --- | --- |
+| **Defect register** | The work list: every distinct defect ranked worst first, with its lateral position across the belt, size, revolutions survived, confidence, **its own contribution to the score**, and the evidence image. The answer to "which one do I send someone to?" |
+| **Vision and sensor, one belt** | Confirmed defects, belt vibration and optical-sensor warnings on one shared time axis |
+| **Detector confidence** | How sure the model was across every sighting, with the operator-tunable incident bar drawn on it |
+| **Belt-monitor node** | Vibration RMS, duty cycle, node uptime, LDR baseline drift (dust on the receiver), estimated revolution period |
+| **Inspection integrity** | Frame accounting: read, analysed, skipped |
+| **Run ledger** | The 25 most recent runs. The `sessions` table was written on every run and queried by nothing until this page |
+
+Every panel that draws a distribution declares a minimum sample size and, below
+it, lists the values with `n =` stated instead. A rig run produces a dozen or so
+defects, and a twenty-bin histogram holding three bars shows the sample rather
+than the distribution — which is worse than showing the numbers outright.
+
+The detector's own threshold (0.35) is deliberately **not** drawn on the
+confidence chart: detections below the incident bar are rendered on the live
+stream but never recorded, so there is structurally no data down there, and a
+line would imply the detector found nothing rather than that the pipeline
+declined to write it down.
+
+**Reading** is a plain-English summary generated by fixed rules over those
+figures — no language model is involved, and a sentence only appears when the
+data supports it. A thin window produces a short summary rather than a
+confident-sounding empty one.
+
+Three caveats the page states about itself, because a senior engineer will ask:
+the two projects run on **different clocks**, so correlation is accurate to
+about ±5s rather than to the second; the revolution period is **estimated** from
+vibration periodicity, not measured; and deduplication is a **heuristic**, which
+is why the raw count travels beside it.
+
+With the node unplugged, corroboration reads "No data" rather than 0% — those
+mean different things, and the second would tell an engineer the hardware
+disagrees when in fact it was absent.
 
 ---
 
@@ -437,7 +510,7 @@ variables prefixed `VITE_`:
 | Key | Notes |
 | --- | --- |
 | `VITE_API_BASE` | Empty locally — Vite proxies `/api` and `/ws` to `:8000`. Set it when the frontend and API are on different origins |
-| `VITE_SUPABASE_URL` | Rig-telemetry Supabase project, for the [3D Model tab](#the-3d-model-tab) |
+| `VITE_SUPABASE_URL` | Rig-telemetry Supabase project, for the [3D Model tab](#the-3d-model-tab) and the [Analytics tab](#analytics) |
 | `VITE_SUPABASE_ANON_KEY` | The **anon / publishable** key. Never `SUPABASE_SERVICE_KEY` — that one bypasses row-level security and would be readable by anyone with devtools |
 
 The rig telemetry lives in a *different* Supabase project from the incident
@@ -490,9 +563,13 @@ detections — so the knob stays, and becomes the right default the moment
 | `GET /api/stream/snapshot` | Single current frame as JPEG |
 | `WS /ws/events` | Detections, incidents, pipeline stats |
 | `GET /api/incidents` | Filterable incident history |
-| `GET /api/incidents/summary` | Aggregates for the belt-health gauge |
+| `GET /api/incidents/summary` | Class and severity aggregates over a window |
 | `GET /api/incidents/{id}/snapshot` | Photographic evidence for one incident |
 | `GET /api/incidents/export.csv` | Maintenance report export |
+| `GET /api/analytics/sessions` | The run ledger, with per-run incident tallies |
+| `GET /api/analytics/reliability` | Reliability Yield: condition, coverage, trend, distinct defects |
+| `GET /api/analytics/timeseries` | Incident counts bucketed over time by severity and class |
+| `GET /api/analytics/geometry` | Defect position across belt width, size and aspect distributions |
 | `GET /api/settings` · `PATCH /api/settings` | Read and change runtime knobs |
 | `GET /api/health` | Service and stream status |
 

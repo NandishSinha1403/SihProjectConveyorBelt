@@ -1,4 +1,6 @@
-# Render blueprint for the Belt Sentinel API.
+# Render blueprint for the CARRY API.
+# The service name predates the CARRY rename and is deliberately unchanged:
+# it is the hostname already in circulation.
 #
 #   render.com -> New -> Blueprint -> point at this repo
 #

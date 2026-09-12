@@ -1,4 +1,4 @@
-# Belt Sentinel — Design System
+# C.A.R.R.Y — Design System
 > prismatic light through obsidian
 
 The colour, type and spacing reference for the control-room dashboard.
@@ -16,7 +16,11 @@ second thing to drift.
 
 **1. Use the tokens, never raw Tailwind colours.** A one-off `amber-500` in a
 warning banner is the usual way this drifts; `sev-medium` already means exactly
-that.
+that. **This applies to charts too** — a charting library is the classic place
+for a stray `#8884d8` to appear. Every axis, grid line and series colour comes
+from [`components/ui/Chart.tsx`](frontend/src/components/ui/Chart.tsx), which
+holds them as `var(--color-*)` strings rather than resolved hex, so a chart
+repaints correctly when the theme flips without re-rendering React.
 
 **2. Severity hues belong to severity.** The five incident levels own red,
 orange, amber and blue. Chrome that is not an alert may not borrow them —
@@ -110,10 +114,17 @@ reporting on the belt.
 | --- | --- | --- |
 | `--font-sans` | Inter Variable | Everything by default |
 | `--font-mono` | IBM Plex Mono | Numbers, ids, timestamps, measured values |
-| `--font-display` | Fraunces Variable | Brand voice only — the wordmark, panel titles, settings item labels |
+| `--font-display` | Fraunces Variable | Display voice — page headings, panel titles, drawer item labels |
+| `--font-brand` | EB Garamond Variable | The wordmark alone, nowhere else |
 
 `--font-display` is never body copy and never data. It carries identity; the
 moment it carries information, the page stops looking like an instrument.
+
+`--font-brand` is split from it because the mark has a job no heading has: it
+holds at `18rem` in the footer and at `1rem` inside the header, and Fraunces'
+optical sizing pulls in a direction the mark does not want across that range.
+Only `C.A.R.R.Y` and its expansion use it — a third face anywhere else would
+just read as an inconsistency.
 
 Mono is not decorative either: it is for values that are read digit by digit or
 compared down a column, where tabular figures matter.
@@ -156,8 +167,50 @@ and should not wait for choreography.
 | Component | File | Notes |
 | --- | --- | --- |
 | `PillNav` | [`components/nav/PillNav.tsx`](frontend/src/components/nav/PillNav.tsx) | The horizontal nav. Active pill is `text-signal` with a signal dot beneath; hover expands a `bg-signal` circle behind a duplicate label in `signal-ink` (GSAP) |
-| `SettingsPanel` | [`components/nav/SettingsPanel.tsx`](frontend/src/components/nav/SettingsPanel.tsx) | Slide-over. Settings left the nav list so five links became four |
+| `NavPanel` | [`components/nav/NavPanel.tsx`](frontend/src/components/nav/NavPanel.tsx) | Slide-over holding the full six-destination index, numbered, with the staggered reveal (GSAP) |
 | `ThemeToggle` | [`components/ThemeToggle.tsx`](frontend/src/components/ThemeToggle.tsx) | Sets `data-theme` on `<html>` |
+| `Wordmark` | [`components/Wordmark.tsx`](frontend/src/components/Wordmark.tsx) | `C.A.R.R.Y` unfolds into the full name on click. See below |
+| `Footer` | [`components/Footer.tsx`](frontend/src/components/Footer.tsx) | Oversized mark, hairline, labelled micro-columns. Shell chrome, so absent on `/rig` |
+| `Chart` | [`components/ui/Chart.tsx`](frontend/src/components/ui/Chart.tsx) | Recharts axis/grid/tooltip chrome bound to the tokens, plus the sparse-data fallback |
+
+**PillNav and NavPanel are not duplicates.** PillNav is the always-visible
+working set — the destinations an operator needs one click away mid-shift.
+NavPanel is the complete index behind the burger, which is also how a phone
+reaches all six when the pill row is tight. (An earlier note here said Settings
+had been moved out "so five links became four"; that stopped being true when
+Analytics arrived and the drawer became the full list.)
+
+### The wordmark
+
+`C.A.R.R.Y` expands, in place, to *Conveyor Anomaly Recognition & Reliability
+Yield*. Each initial is already the first letter of its word, so the mark
+**grows rather than cross-fades**: every anchor letter keeps its place at the
+head of its own word, the rest of the word unrolls from behind it, and only the
+following words slide right. A cross-fade between two strings would be the
+obvious implementation and would throw away the only interesting thing about
+the mark.
+
+Three details it would be easy to get wrong, and does not: the full name is
+always in the DOM inside an `sr-only` span, so a screen reader never hears
+"C dot A dot R dot R dot Y"; `prefers-reduced-motion` swaps the states without
+animating; and the button is absolutely positioned inside its header cell, so
+opening it cannot shove the centred `PillNav` sideways. It steps down from
+`1.5rem` to `1rem` as it opens, because the long form is 48 characters and does
+not fit beside the nav at display size — which is also the size the tails are
+measured at, since measuring them closed would leave the open mark clipped.
+
+Two things about how it is built, both learned the hard way. The button carries
+`w-max` and every part carries `shrink-0`: without them the absolutely
+positioned button inherits a shrink-to-fit cap from its `1fr` grid column, the
+flex children compress under their content width, and the measured widths come
+back too small — which is exactly how the mark ended up clipped.
+
+And unlike `PillNav` and `NavPanel`, **this one uses CSS transitions rather than
+GSAP**. It is a two-state toggle whose states React already owns, and the GSAP
+version wrote inline `width` onto elements React re-renders; the two disagreed
+about ownership and the mark silently stopped opening at all. Declaring both
+states and letting the browser interpolate has no such failure mode. Reach for
+GSAP where the choreography is genuinely imperative, not for a toggle.
 
 The **3D Model** tab is the one deliberate exception: it carries its own
 palette and its own independent light/dark switch, scoped under `.rig-page` in

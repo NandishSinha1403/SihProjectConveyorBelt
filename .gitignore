@@ -29,3 +29,7 @@ training/runs/
 # Base weights are downloaded on demand, not vendored
 yolo11*.pt
 yolov8*.pt
+
+# Raw capture footage from the rig (videos and stills). Local source material,
+# not a build input: 134 MB that would live in every clone forever.
+assets/

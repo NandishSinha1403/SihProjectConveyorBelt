@@ -1,4 +1,6 @@
-# Belt Sentinel
+# C.A.R.R.Y
+
+**Conveyor Anomaly Recognition & Reliability Yield**, by Team Unplayed.
 
 Vision-based condition monitoring for a conveyor belt: a camera watches the
 belt, a detector finds damage, and an operator sees events rather than raw
@@ -101,6 +103,42 @@ _Avoid_: thumbnail, capture, screenshot, still
 One continuous run of the pipeline over one source, from start to stop. Incident
 numbering restarts with each session; database identity does not.
 _Avoid_: run, stream, connection
+
+## Analysis
+
+**Distinct defect**:
+One physical defect, after the incident rows describing it on successive belt
+revolutions have been merged. The unit the condition index is computed over.
+A belt is a loop, so the same tear opens a new incident every revolution;
+counting rows instead of defects measures belt speed as much as belt damage.
+_Avoid_: unique defect, deduplicated incident, merged incident
+
+**Sighting**:
+One incident row, considered as evidence of a distinct defect rather than as an
+event in its own right. Several sightings make one defect more certainly real;
+they do not make it worse.
+_Avoid_: occurrence, observation, hit
+
+**Reliability Yield**:
+The belt condition index, from 0 to 100, computed over distinct defects and
+weighted by severity, confidence, geometry and persistence. The Y in CARRY.
+Reported alongside coverage, corroboration and trend rather than alone, because
+a condition score with no stated basis is not actionable.
+_Avoid_: health score, belt health, condition score (that is one part of it)
+
+**Coverage**:
+The share of arriving frames the detector actually analysed. Inspection
+integrity, not belt condition: a clean belt and a belt nobody looked at both
+produce zero incidents, and only this tells them apart. Published beside the
+condition score, never folded into it.
+_Avoid_: uptime, accuracy, completeness
+
+**Corroboration**:
+The share of rupture-class defects the camera found that the belt-monitor
+node's optical sensor independently flagged within a stated time tolerance.
+A statement about instrument agreement, not about the belt. Its absence
+("no sensor data") is a different finding from disagreement ("0%").
+_Avoid_: confirmation (that is the frame-count rule), accuracy, validation
 
 ## Demonstration
 
